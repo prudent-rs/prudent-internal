@@ -7,6 +7,9 @@
 //extern crate alloc;
 
 /// Invoke am unsafe function.
+///
+/// There is NO extra enclosing pair of parenthesis `(...)` around the arguments. If they were, that
+/// would be confusing and less readable when some parameters were tuples.
 #[macro_export]
 macro_rules! unsafe_fn {
     ( $fn:expr $(, $arg:expr)+ ) => {
@@ -79,7 +82,7 @@ macro_rules! unsafe_fn {
 }
 //-------------
 
-/// Invoke am unsafe method. Like [unsafe_fn], but
+/// Invoke an unsafe method. Like [unsafe_fn], but
 /// - we accept a receiver `self`
 /// - we store `self` in a variable outside of the generated `unsafe {...}`
 /// - we don't allow $fn to be an expression (which doesn't work in standard methods calls), but
@@ -137,19 +140,129 @@ macro_rules! unsafe_method {
 
 //-------------
 
+#[macro_export]
+macro_rules! unsafe_static_set {
+    ($static:path) => {
+        (*&mut unsafe { $static })
+    };
+}
+//-------------
+
+/* /// Deref a pointer (either `const` or `mut`) to a value (of the same type).
+///
+/// Beware: This moves the value out, or it copies it (if [`core::marker::Copy`]).
+#[macro_export]
+macro_rules! unsafe_deref {
+    ($ptr:expr) => {{
+        let ptr = $ptr;
+        // @TODO potentially test that Copy: call: fn accept_copy(_: impl Copy) {}
+        unsafe { *ptr }
+    }};
+}
+
+/// Deref a `mut` pointer to a value whose field(s) can be mutated.
+///
+/// @TODO test: needed?
+#[macro_export]
+macro_rules! unsafe_deref_mut {
+    ($ptr:expr) => {{
+        let ptr = $ptr;
+        if true {
+            panic!()
+        }
+        unsafe { *ptr }
+    }};
+}
+
+/// Deref a `mut` pointer and assign to it (a given value of the same type).
+#[macro_export]
+macro_rules! unsafe_deref_set {
+    ($ptr:expr) => {{
+        let ptr = $ptr;
+        unsafe { *ptr }
+    }};
+}*/
+//-------------
+
+/// Deref a pointer (either `const` or `mut`) and yield a read-only reference (to the same
+/// underlying type).
+#[macro_export]
+macro_rules! unsafe_ref {
+    ($ptr:expr) => {
+        {
+            let ptr = $ptr;
+            let _: *const _ = ptr; // Partial type check: $ptr needs to yield a const pointer
+            unsafe { &*ptr }
+        }
+    };
+}
+
+/// Deref a `mut` pointer and yield a `mut` reference (to the same underlying type).
+#[macro_export]
+macro_rules! unsafe_ref_mut {
+    ($ptr:expr) => {
+        {
+            let ptr = $ptr;
+            let _: *mut _ = ptr; // Partial type check: $ptr needs to yield a mut pointer
+            unsafe { &mut *ptr }
+        }
+    };
+}
+
+/// Assign the given value to the location given in the pointer.
+///
+/// Needed, because we can't isolate:
+///
+/// `unsafe { *ptr } = value;`
+///
+/// We can't have a macro invocation on the left side (target) of an assignment operator `=` either,
+/// so nothing like:
+///
+/// `unsafe_ref_set!( pt ) = false;`
+#[macro_export]
+macro_rules! unsafe_ref_set {
+    ($ptr:expr, $value:expr) => {{
+        let ptr = $ptr;
+        let _: *mut _ = ptr; // Partial type check: $ptr needs to yield a mut pointer
+        let value = $value;
+        unsafe { *ptr = value; }
+    }};
+}
+
+//-------------
+/// Cast the given value to the given type. Wrap the actual cast in `unsafe{...}` - but not wrapping
+/// the given expression that yields the value. This allows any more `unsafe` code in the expression
+/// to surface.
+#[macro_export]
+macro_rules! unsafe_cast {
+    ($ptr:expr, $t:ty) => {{
+        let ptr = $ptr;
+        unsafe { ptr as $ty }
+    }};
+}
+
+
+//-------------
+
 #[cfg(test)]
-mod tests {
-    unsafe fn unsafe_a(_: char, b: bool, _: u8, _: i32) -> bool {
+mod fn_method_tests {
+    const unsafe fn unsafe_f(_: char, b: bool, _: u8, _: i32) -> bool {
         b
     }
+
+    const fn _return_unsafe_fn() -> unsafe fn(char, bool, u8, i32) -> bool {
+        unsafe_f
+    }
+
+    const _B: bool = {
+        const F: unsafe fn(char, bool, u8, i32) -> bool = unsafe_f;
+        true
+    };
 
     #[test]
     fn it_works() {
         //let tuple = unsafe_fn!{~~  'c', true, 1, -5 };
-        unsafe_fn!(unsafe_a, 'c', true, 1, -5);
-
-        //unsafe fn f() {}
-        //unsafe_fn!( f);
+        unsafe_fn!(unsafe_f, 'c', true, 1, -5);
 
         /*let args = ('c', (true, (1, (0,))));
         unsafe {
@@ -158,8 +271,205 @@ mod tests {
         */
 
         let _ = unsafe_fn!(usize::unchecked_add, 1, 1);
+
         let _ = unsafe_method!(1u8, unchecked_add, 0);
+        // Even the ordinary notation requires the receiver to be typed (with `_u8` postfix here):
         let _ = unsafe { 1_u8.unchecked_add(0) };
+    }
+
+    mod with_static_x {
+        #[allow(unused)]
+        static mut X: [bool; 2] = [true, false];
+        fn _unsafe_set_x_0_simple_1(value: bool) {
+            let value = value;
+
+            // @TODO The expression (here: X) could include subexpressions (like array index) and
+            // those may include `unsafe` code, too!
+            unsafe { X[0] = value };
+        }
+        fn _unsafe_set_x_0_simple_2(value: bool) {
+            *unsafe {
+                // @TODO The expression (here: X) could include subexpressions (like array index) and
+                // those may include `unsafe` code, too!
+                #[allow(static_mut_refs)]
+                &mut X[0]
+                //
+            } = value;
+
+            (*unsafe {
+                #[allow(static_mut_refs)]
+                &mut X
+            })[0] = value;
+
+            // FLEXIBLE: <<~<<~<<
+            (*&mut unsafe { X })[0] = value;
+            
+            (*&mut unsafe { X }) = [true, true];
+        }
+        fn _unsafe_set_x_0_store_ref(value: bool) {
+            let value = value;
+            // @TODO The expression (here: X) could include subexpressions (like array index) and
+            // those may include `unsafe` code, too!
+            let target_ref = &mut unsafe { X };
+
+            target_ref[0] = value;
+        }
+
+        fn _unsafe_get_x_0_simple() -> bool {
+            (unsafe { X })[0]
+        }
+        fn _unsafe_get_x_0_not_separating_indexes() -> bool {
+            // An alias `use` does NOT "hide" the original symbol.
+            //
+            //use X as x;
+
+            // let bindings can't shadow statics. Local functions or closures can't shadow statics
+            // either.
+
+            //( |X| X ) (unsafe {X} );
+
+            //let X: _ = &mut unsafe { X };
+
+            let target_ref = &mut unsafe { X };
+
+            target_ref[0]
+        }
+
+        fn _unsafe_get_x_0_shadow_through_submodule() -> bool {
+            let _local: char = 'l';
+
+            mod shadow_x_level_one {
+                use super::X;
+
+                pub mod shadow_x_level_two {
+                    // Or, instead of an import, just use `super::X` below. One less possible name
+                    // conflict.
+                    //
+                    //use super::X as OUTER_X;
+
+                    // @TODO requires a return type
+                    //
+                    // @TODO doesn't work if the static variable is identified with a
+                    // path like `crate::mod_x::mod_y::STATIC_X``
+                    pub fn _f() -> bool {
+                        #[allow(non_snake_case)]
+                        let X = &unsafe { super::X };
+
+                        // @TODO this may capture variables from the caller's scope!
+                        //
+                        //X[0] || super::super::_local=='x'
+                        if true {
+                            panic!()
+                        } else {
+                            X[0]
+                        }
+                    }
+
+                    /*trait With: Sized {
+                        fn with<R>(self, _f: impl Fn (Self) -> R) -> R {
+                            _f(self)
+                        }
+                    }
+                    impl<T: Sized> With for T {}*/
+
+                    pub fn _ff<T, R>(_f: impl Fn(T) -> R) -> R {
+                        panic!()
+                    }
+                }
+            }
+            shadow_x_level_one::shadow_x_level_two::_f()
+        }
+    }
+}
+
+/*#[allow(unused)] #[cfg(test)] mod deref_tests {
+    #[test]
+    fn deref_read() {
+        let a: bool = true;
+        let pt: *const bool = &a as *const bool;
+
+        let a2: bool = unsafe_deref!(pt);
+    }
+    // @TODO move to rustdoc: /// ```compile_fail
+    #[test]
+    fn deref_assign_fails() {
+        let mut a: bool = true;
+        let pt: *mut bool = &mut a as *mut bool;
+
+        let a2: bool = unsafe_deref!(pt);
+        // FAILS:
+        //unsafe_deref!(pt) = false;
+    }
+    #[test]
+    fn deref_mut_field_or_method() {
+        let mut v: Vec<char> = vec!['a', 'b'];
+        let pt: *mut Vec<char> = &mut v as *mut Vec<char>;
+
+        //unsafe_deref!(pt).push('c');
+        //
+        //let _ = unsafe_deref!(pt).len();
+    }
+}*/
+
+#[allow(unused)]
+#[cfg(test)]
+mod casting_tests {
+    use std::fmt::Display;
+
+    #[test]
+    fn read_only() {
+        let a: bool = true;
+        let pt: *const bool = &a as *const bool;
+
+        let rf: &bool = unsafe_ref!(pt);
+    }
+
+    #[test]
+    fn mut_to_read_only() {
+        let mut a: bool = true;
+        let pt: *mut bool = &mut a as *mut bool;
+
+        let rf: &bool = unsafe_ref!(pt);
+
+        // Not allowed:
+        //
+        // unsafe { *pt  } = false;
+        unsafe { *pt  = false };
+
+        // Move to a separate test:
+        unsafe_ref_set!( pt, false);
+    }
+
+    #[test]
+    fn read_only_dyn_trait() {
+        let rf: &'static dyn Display = &"abc";
+        let pt: *const dyn Display = rf as *const dyn Display;
+
+        let rf2: &dyn Display = unsafe_ref!(pt);
+    }
+
+    #[test]
+    fn mut_to_mut() {
+        {
+            let mut a: bool = true;
+            let pt: *mut bool = &mut a as *mut bool;
+
+            let rf: &mut bool = unsafe_ref_mut!(pt);
+        }
+        {
+            let mut v: Vec<char> = vec!['a', 'b'];
+            let pt: *mut Vec<char> = &mut v as *mut Vec<char>;
+            unsafe_ref_mut!(pt).push('c');
+        }
+    }
+
+    #[test]
+    fn mut_dyn_trait() {
+        let mut v: Vec<char> = vec!['a', 'b'];
+        let rf: &mut dyn AsMut<[char]> = &mut v;
+        let pt: *mut dyn AsMut<[char]> = rf as *mut dyn AsMut<[char]>;
+
+        let rf2: &mut dyn AsMut<[char]> = unsafe_ref_mut!(pt);
     }
 }
 
