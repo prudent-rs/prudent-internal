@@ -1,0 +1,24 @@
+[package]
+name = "prudent"
+version = "0.0.1-alpha"
+edition = "2018"
+
+license = "BSD-2-Clause OR Apache-2.0 OR MIT"
+
+# rust-version is recognized only since Rust 1.56, but that's OK.
+rust-version = "1.31"
+
+authors = ["Peter Lyons Kehl<peter.kehl@gmail.com>"]
+description = "Help you make Rust code safer. For both authors and reviewers."
+
+categories = ["development-tools", "no-std", "no-std::no-alloc", "rust-patterns", "security"]
+
+keywords = ["safe", "safety", "unsafe", "isolation", "review"]
+
+repository = "https://github.com/peter-lyons-kehl/prudent"
+homepage = "https://github.com/peter-lyons-kehl/prudent"
+
+[lints.rust]
+unexpected_cfgs = { level = "forbid"}
+
+[dependencies]
