@@ -22,8 +22,9 @@ macro_rules! unsafe_fn {
         // 1. the result can be used as a value in an outer expression,and
         // 2. local variables don't conflict with the outer scope
         {
-            let (tuple, fun) = ($crate::unsafe_fn!{~ $($arg),+ }, $fn);
-            $crate::unsafe_fn! {~~~
+            let (tuple, fun) = ($crate::unsafe_fn_internal!{ $($arg),+ }, $fn);
+
+            $crate::unsafe_fn_internal! {~
                 fun,
                 tuple,
                 ( $( $arg ),* ),
@@ -40,25 +41,28 @@ macro_rules! unsafe_fn {
             }
         }
     };
+}
 
-    // Construct the tuple:
-    (~ $first:expr, $($rest:expr),+ ) => {
+#[macro_export]
+macro_rules! unsafe_fn_internal {
+    // Construct the tuple. Recursive:
+    ( $first:expr, $($rest:expr),+ ) => {
         (
-            $first, $crate::unsafe_fn!{ ~ $($rest),+ }
+            $first, $crate::unsafe_fn_internal!{ $($rest),+ }
         )
     };
-    (~ $last:expr) => {
+    ( $last:expr) => {
         ($last,)
     };
 
-    // Access tuple parts and call the function:
-    (~~~ $fn:expr, $tuple:ident,
+    // Access tuple parts and get ready to call the function:
+    (~ $fn:expr, $tuple:ident,
      ( $_first_arg:expr, $($other_arg:expr),+ ),
      $( ( $($accessor_part:tt),+
         )
      ),*
     ) => {
-        $crate::unsafe_fn!{ ~~~
+        $crate::unsafe_fn_internal!{ ~
             $fn, $tuple, ( $($other_arg),+ ),
             // Insert a new accessor to front (left): 0.
             (0),
@@ -68,7 +72,7 @@ macro_rules! unsafe_fn {
         }
     };
     // All accessors are ready, so call the function:
-    (~~~ $fn:expr, $tuple:ident,
+    (~ $fn:expr, $tuple:ident,
      ( $_last_or_only_arg:expr ),
      $( ( $($accessor_part:tt),+
         )
@@ -77,14 +81,14 @@ macro_rules! unsafe_fn {
         #[allow(unsafe_code)]
         unsafe {
             $fn( $(
-                    $crate::unsafe_fn!{ ~~~~~ $tuple, $($accessor_part),+ }
+                    $crate::unsafe_fn_internal!{ ~~~ $tuple, $($accessor_part),+ }
                 ),*
             )
         }
     };
 
     // Expand an accessor group/list to access a field in the tuple:
-    (~~~~~ $tuple:ident, $($accessor_part:tt),* ) => {
+    (~~~ $tuple:ident, $($accessor_part:tt),* ) => {
         $tuple $(. $accessor_part )*
     };
 }
@@ -135,10 +139,10 @@ macro_rules! unsafe_method_ref {
         {
             use $crate::AsRefOrMut as _;
             let (tuple, receiver) = (
-                $crate::unsafe_fn!{~ $($arg),+ },
+                $crate::unsafe_fn_internal!{ $($arg),+ },
                 ( $self ).prudent_normalize_value_self_as_ref()
             );
-            $crate::unsafe_method_ref! {~~~
+            $crate::unsafe_method_ref_internal! {
                 receiver,
                 $fn,
                 tuple,
@@ -158,15 +162,18 @@ macro_rules! unsafe_method_ref {
             }
         }
     };
+}
 
-    // Access tuple parts and call the function:
-    (~~~ $self:expr, $fn:ident, $tuple:ident,
+#[macro_export]
+macro_rules! unsafe_method_ref_internal {
+    // Access tuple parts and get ready to call the method:
+    ( $self:expr, $fn:ident, $tuple:ident,
      ( $_first_arg:expr, $($other_arg:expr),+ ),
      $( ( $($accessor_part:tt),+
         )
      ),*
     ) => {
-        $crate::unsafe_method_ref!{ ~~~
+        $crate::unsafe_method_ref_internal!{
             $self, $fn, $tuple, ( $($other_arg),+ ),
             // Insert a new accessor to front (left): 0.
             (0),
@@ -177,21 +184,53 @@ macro_rules! unsafe_method_ref {
     };
     // All accessors are ready. $self was already evaluated (outside of unsafe {...}). So call the
     // function:
-    (~~~ $self:expr, $fn:ident, $tuple:ident,
-     ( $_last_or_only_arg:expr ),
-     $( ( $($accessor_part:tt),+
-        )
-     ),*
+    ( $self:expr, $fn:ident, $tuple:ident,
+      ( $_last_or_only_arg:expr ),
+      $( ( $($accessor_part:tt),+
+         )
+      ),*
     ) => {
+        #[allow(unsafe_code)]
         unsafe {
             $self. $fn( $(
-                    $crate::unsafe_fn!{ ~~~~~ $tuple, $($accessor_part),+ }
+                    $crate::unsafe_fn_internal!{ ~~~ $tuple, $($accessor_part),+ }
                 ),*
             )
         }
     };
 }
 
+/// Like [unsafe_method_ref], but for methods whose receiver is a mutable reference: `&mut self`.
+#[macro_export]
+macro_rules! unsafe_method_mut {
+    ($self:expr, $fn:ident $(, $arg:expr)+ ) => {
+        {
+            use $crate::AsRefOrMut as _;
+            let (tuple, receiver) = (
+                $crate::unsafe_fn_internal!{ $($arg),+ },
+                ( $self ).prudent_normalize_value_self_as_mut()
+            );
+            $crate::unsafe_method_ref_internal! {
+                receiver,
+                $fn,
+                tuple,
+                ( $( $arg ),* ),
+                (0)
+            }
+        }
+    };
+
+    ($self:expr, $fn:ident ) => {
+        {
+            use $crate::AsRefOrMut as _;
+            let receiver = ( $self ).prudent_normalize_value_self_as_mut();
+            #[allow(unsafe_code)]
+            unsafe {
+                receiver. $fn()
+            }
+        }
+    };
+}
 //-------------
 
 // @TODO
@@ -287,13 +326,11 @@ https://doc.rust-lang.org/std/clone/trait.UseCloned.html
 macro_rules! unsafe_use {
     ($ptr:expr) => {{
         let ptr = $ptr;
-        let _: *const _ = ptr; // Partial type check that $ptr yields a const pointer
-        unsafe { *ptr }
+        unsafe { ( *ptr ).use }
     }};
     ($ptr:expr, $ptr_type:ty) => {{
         let ptr = $ptr as $ptr_type;
-        let _: *const _ = ptr; // Partial type check that $ptr yields a const pointer
-        unsafe { *ptr }
+        unsafe { ( *ptr ).use }
     }};
 }*/
 
