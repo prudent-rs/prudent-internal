@@ -11,10 +11,87 @@
 #[cfg(doc)]
 extern crate alloc;
 
-/// Invoke am unsafe function.
+// Implementation notes ARE a part of the documentation:
+// - Otherwise it's a pain to edit them.
+// - Users deserve documentation of how a macro works, because
+//   - macros are much more difficult to read than Rust non-macro code, and
+//   - macros inject code.
+//
+/// Invoke an unsafe function.
 ///
-/// There is NO extra enclosing pair of parenthesis `(...)` around the arguments. If they were, that
-/// would be confusing and less readable when some parameters were tuples.
+/// There is **no** extra enclosing pair of parenthesis `(...)` around the list of arguments (if
+/// any). If there was such a pair, it could be confused for a tuple. It would also be less readable
+/// when some parameters were tuples/complex expressions.
+///
+/// Implementation notes
+///
+/// We want to accept any valid expressions for function parameters. But we don't want them to
+/// evaluate inside `unsafe {...}` block that calls the given `unsafe` function. That could "hide"
+/// other `unsafe` code (in expressions passed as parameters). So, we assign the given expressions
+/// (for parameters) to local variables first, before `unsafe{...}`.
+///
+/// However, that is a challenge with `macro_rules!`:
+/// - variable number of parameters => we store them in a tuple; but
+/// - storing them in an ordinary "flat" tuple would involve index numbers 0, 1, 2... That is
+///   difficult to generate with `macro_rules!` so that the generated numbers are literals. It is
+///   possible for `macro_rules!` to generate integer **expressions**, but even that is
+///   [tricky](https://lukaswirth.dev/tlborm/decl-macros/building-blocks/counting.html).
+///
+/// Instead: a "tuple tree". It's an unbalanced binary tree. See it expanded:
+/// - [simple_examples/fn_add_three/src/lib.rs](../simple_examples/fn_add_three/src/lib.rs)
+/// - cd simple_examples/fn_add_three
+/// - cargo expand
+///
+/// ```rust
+/// # use prudent::unsafe_fn;
+/// unsafe fn add_three(left: u64, middle: u64, right: u64) -> u64 {
+///     left + middle + right
+/// }
+/// unsafe_fn!(add_three, 1, 2, 3);
+/// ```
+/// expands to:
+/// ```rust
+/// # use prudent::unsafe_fn;
+/// # unsafe fn add_three(left: u64, middle: u64, right: u64) -> u64 {
+/// #     left + middle + right
+/// # }
+/// // ...
+/// {
+///     let (tuple, fun) = ((1, (2, (3,))), add_three);
+///     #[allow(unsafe_code)]
+///     unsafe {
+///         fun(tuple.0, tuple.1 .0, tuple.1 .1 .0)
+///     }
+/// };
+/// ```
+/// and [simple_examples/fn_add_four/src/lib.rs]:
+/// ```rust
+/// # use prudent::unsafe_fn;
+/// unsafe fn add_four(left: u64, middle_left:u64, middle_right:u64, right: u64) -> u64 {
+///     left + middle_left + middle_right + right
+/// }
+/// unsafe_fn!(add_four, 1, 2, 3, 4);
+/// ```
+/// expands to:
+/// ```rust
+/// # use prudent::unsafe_fn;
+/// # unsafe fn add_four(left: u64, middle_left: u64, middle_right: u64, right: u64) -> u64 {
+/// #     left + middle_left + middle_right + right
+/// # }
+/// // ...
+/// {
+///     let (tuple_tree, fun) = ((1, (2, (3, (4,)))), add_four);
+///     #[allow(unsafe_code)]
+///     unsafe {
+///         fun(
+///             tuple_tree.0,
+///             tuple_tree.1 .0,
+///             tuple_tree.1 .1 .0,
+///             tuple_tree.1 .1 .1 .0,
+///         )
+///     }
+/// };
+/// ```
 #[macro_export]
 macro_rules! unsafe_fn {
     ( $fn:expr $(, $arg:expr)+ ) => {
@@ -22,11 +99,11 @@ macro_rules! unsafe_fn {
         // 1. the result can be used as a value in an outer expression,and
         // 2. local variables don't conflict with the outer scope
         {
-            let (tuple, fun) = ($crate::unsafe_fn_internal!{ $($arg),+ }, $fn);
+            let (tuple_tree, fun) = ($crate::unsafe_fn_internal_build_tuple_tree!{ $($arg),+ }, $fn);
 
-            $crate::unsafe_fn_internal! {~
+            $crate::unsafe_fn_internal_build_accessors_and_call! {
                 fun,
-                tuple,
+                tuple_tree,
                 ( $( $arg ),* ),
                 (0)
             }
@@ -43,27 +120,32 @@ macro_rules! unsafe_fn {
     };
 }
 
+#[doc(hidden)]
 #[macro_export]
-macro_rules! unsafe_fn_internal {
-    // Construct the tuple. Recursive:
+macro_rules! unsafe_fn_internal_build_tuple_tree {
+    // Construct the tuple_tree. Recursive:
     ( $first:expr, $($rest:expr),+ ) => {
         (
-            $first, $crate::unsafe_fn_internal!{ $($rest),+ }
+            $first, $crate::unsafe_fn_internal_build_tuple_tree!{ $($rest),+ }
         )
     };
     ( $last:expr) => {
         ($last,)
     };
+}
 
-    // Access tuple parts and get ready to call the function:
-    (~ $fn:expr, $tuple:ident,
+#[doc(hidden)]
+#[macro_export]
+macro_rules! unsafe_fn_internal_build_accessors_and_call {
+    // Access tuple_tree parts and get ready to call the function:
+    ( $fn:expr, $tuple_tree:ident,
      ( $_first_arg:expr, $($other_arg:expr),+ ),
      $( ( $($accessor_part:tt),+
         )
      ),*
     ) => {
-        $crate::unsafe_fn_internal!{ ~
-            $fn, $tuple, ( $($other_arg),+ ),
+        $crate::unsafe_fn_internal_build_accessors_and_call!{
+            $fn, $tuple_tree, ( $($other_arg),+ ),
             // Insert a new accessor to front (left): 0.
             (0),
             $(  // Prepend 1 to each supplied/existing accessor
@@ -72,24 +154,30 @@ macro_rules! unsafe_fn_internal {
         }
     };
     // All accessors are ready, so call the function:
-    (~ $fn:expr, $tuple:ident,
-     ( $_last_or_only_arg:expr ),
-     $( ( $($accessor_part:tt),+
-        )
-     ),*
+    ( $fn:expr, $tuple_tree:ident,
+      ( $_last_or_only_arg:expr ),
+      $( ( $($accessor_part:tt),+
+         )
+      ),*
     ) => {
         #[allow(unsafe_code)]
         unsafe {
             $fn( $(
-                    $crate::unsafe_fn_internal!{ ~~~ $tuple, $($accessor_part),+ }
+                    $crate::unsafe_fn_internal_access_tuple_tree_field!{ $tuple_tree, $($accessor_part),+ }
                 ),*
             )
         }
     };
+}
 
-    // Expand an accessor group/list to access a field in the tuple:
-    (~~~ $tuple:ident, $($accessor_part:tt),* ) => {
-        $tuple $(. $accessor_part )*
+#[doc(hidden)]
+#[macro_export]
+/// INTERNAL. Do NOT use directly - subject to change.
+///
+/// Expand an accessor group/list to access a field in the tuple_tree tree.
+macro_rules! unsafe_fn_internal_access_tuple_tree_field {
+    ( $tuple_tree:ident, $($accessor_part:tt),* ) => {
+        $tuple_tree $(. $accessor_part )*
     };
 }
 //-------------
@@ -117,6 +205,8 @@ pub trait AsRefOrMut {
 
     /// Like [AsRefOrMut::prudent_normalize_value_self_as_ref], but this "normalizes" the given
     /// receiver to a mutable reference.
+    ///
+    /// Used by [unsafe_method_mut].
     fn prudent_normalize_value_self_as_mut(&mut self) -> &mut Self {
         self
     }
@@ -132,30 +222,59 @@ impl<T> AsRefOrMut for T {}
 ///   only an identifier.
 #[macro_export]
 macro_rules! unsafe_method_ref {
-    ($self:expr, $fn:ident $(, $arg:expr)+ ) => {
+    ($self:expr, $fn:ident $(, $arg:expr)* ) => {
+        $crate::unsafe_method_internal_normalize!{ $self, (.prudent_normalize_value_self_as_ref()) $fn $(, $arg)* }
+    }
+}
+
+/// Like [unsafe_method_ref], but for methods whose receiver is a mutable reference: `&mut self`.
+#[macro_export]
+macro_rules! unsafe_method_mut {
+    ($self:expr, $fn:ident $(, $arg:expr)* ) => {
+        $crate::unsafe_method_internal_normalize!{ $self, (.prudent_normalize_value_self_as_mut()) $fn $(, $arg)* }
+    }
+}
+
+/// Like [unsafe_method_ref], but for methods whose receiver is passed by value: `self` (that is,
+/// copied if it's [core::marker::Copy], or moved otherwise).
+#[macro_export]
+macro_rules! unsafe_method_val {
+    ($self:expr, $fn:ident $(, $arg:expr)* ) => {
+        $crate::unsafe_method_internal_normalize!{ $self, () $fn $(, $arg)* }
+    }
+}
+
+#[doc(hidden)]
+#[macro_export]
+/// - `$( $normalizer_part:tt )*` - an expression suffix that gets appended to $self (including any
+///   leading dot, if needed). For `unsafe_method_ref` and `unsafe_method`_it "normalizes" the given
+///   `$self`` to the type expected (shared reference `&self` or mutable reference `&mut`). For
+///   unsafe_method_val it's empty.
+macro_rules! unsafe_method_internal_normalize {
+    ($self:expr, ( $( $normalizer_part:tt )* ) $fn:ident $(, $arg:expr)+ ) => {
         // Enclosed in a block, so that
         // 1. the result can be used as a value in an outer expression,and
         // 2. local variables don't conflict with the outer scope
         {
             use $crate::AsRefOrMut as _;
-            let (tuple, receiver) = (
-                $crate::unsafe_fn_internal!{ $($arg),+ },
-                ( $self ).prudent_normalize_value_self_as_ref()
+            let (tuple_tree, receiver) = (
+                $crate::unsafe_fn_internal_build_tuple_tree!{ $($arg),+ },
+                ( $self )$( $normalizer_part )*
             );
-            $crate::unsafe_method_ref_internal! {
+            $crate::unsafe_method_internal! {
                 receiver,
                 $fn,
-                tuple,
+                tuple_tree,
                 ( $( $arg ),* ),
                 (0)
             }
         }
     };
 
-    ($self:expr, $fn:ident ) => {
+    ($self:expr, ($( $normalizer_part:tt )*) $fn:ident ) => {
         {
             use $crate::AsRefOrMut as _;
-            let receiver = ( $self ).prudent_normalize_value_self_as_ref();
+            let receiver = ( $self )$( $normalizer_part )*;
             #[allow(unsafe_code)]
             unsafe {
                 receiver. $fn()
@@ -164,17 +283,18 @@ macro_rules! unsafe_method_ref {
     };
 }
 
+#[doc(hidden)]
 #[macro_export]
-macro_rules! unsafe_method_ref_internal {
-    // Access tuple parts and get ready to call the method:
-    ( $self:expr, $fn:ident, $tuple:ident,
+macro_rules! unsafe_method_internal {
+    // Access tuple_tree parts and get ready to call the method:
+    ( $self:expr, $fn:ident, $tuple_tree:ident,
      ( $_first_arg:expr, $($other_arg:expr),+ ),
      $( ( $($accessor_part:tt),+
         )
      ),*
     ) => {
-        $crate::unsafe_method_ref_internal!{
-            $self, $fn, $tuple, ( $($other_arg),+ ),
+        $crate::unsafe_method_internal!{
+            $self, $fn, $tuple_tree, ( $($other_arg),+ ),
             // Insert a new accessor to front (left): 0.
             (0),
             $(  // Prepend 1 to each supplied/existing accessor
@@ -184,7 +304,7 @@ macro_rules! unsafe_method_ref_internal {
     };
     // All accessors are ready. $self was already evaluated (outside of unsafe {...}). So call the
     // function:
-    ( $self:expr, $fn:ident, $tuple:ident,
+    ( $self:expr, $fn:ident, $tuple_tree:ident,
       ( $_last_or_only_arg:expr ),
       $( ( $($accessor_part:tt),+
          )
@@ -193,41 +313,9 @@ macro_rules! unsafe_method_ref_internal {
         #[allow(unsafe_code)]
         unsafe {
             $self. $fn( $(
-                    $crate::unsafe_fn_internal!{ ~~~ $tuple, $($accessor_part),+ }
+                    $crate::unsafe_fn_internal_access_tuple_tree_field!{ $tuple_tree, $($accessor_part),+ }
                 ),*
             )
-        }
-    };
-}
-
-/// Like [unsafe_method_ref], but for methods whose receiver is a mutable reference: `&mut self`.
-#[macro_export]
-macro_rules! unsafe_method_mut {
-    ($self:expr, $fn:ident $(, $arg:expr)+ ) => {
-        {
-            use $crate::AsRefOrMut as _;
-            let (tuple, receiver) = (
-                $crate::unsafe_fn_internal!{ $($arg),+ },
-                ( $self ).prudent_normalize_value_self_as_mut()
-            );
-            $crate::unsafe_method_ref_internal! {
-                receiver,
-                $fn,
-                tuple,
-                ( $( $arg ),* ),
-                (0)
-            }
-        }
-    };
-
-    ($self:expr, $fn:ident ) => {
-        {
-            use $crate::AsRefOrMut as _;
-            let receiver = ( $self ).prudent_normalize_value_self_as_mut();
-            #[allow(unsafe_code)]
-            unsafe {
-                receiver. $fn()
-            }
         }
     };
 }
@@ -377,7 +465,7 @@ mod tests_fn_method {
 
     #[test]
     fn unsafe_fn() {
-        //let tuple = unsafe_fn!{~  'c', true, 1, -5 };
+        //let tuple_tree = unsafe_fn!{~  'c', true, 1, -5 };
         unsafe_fn!(unsafe_f, 'c', true, 1, -5);
 
         let _ = unsafe_fn!(usize::unchecked_add, 1, 1);
