@@ -225,7 +225,7 @@ impl<T> AsRefOrMut for T {}
 #[macro_export]
 macro_rules! unsafe_method_ref {
     ($self:expr, $fn:ident $(, $arg:expr)* ) => {
-        $crate::unsafe_method_internal_normalize!{ $self, (.prudent_normalize_value_self_as_ref()) $fn $(, $arg)* }
+        $crate::unsafe_method_internal_normalize!{ $self, () (.prudent_normalize_value_self_as_ref()) $fn $(, $arg)* }
     }
 }
 
@@ -233,7 +233,7 @@ macro_rules! unsafe_method_ref {
 #[macro_export]
 macro_rules! unsafe_method_mut {
     ($self:expr, $fn:ident $(, $arg:expr)* ) => {
-        $crate::unsafe_method_internal_normalize!{ $self, (.prudent_normalize_value_self_as_mut()) $fn $(, $arg)* }
+        $crate::unsafe_method_internal_normalize!{ $self, () (.prudent_normalize_value_self_as_mut()) $fn $(, $arg)* }
     }
 }
 
@@ -242,18 +242,18 @@ macro_rules! unsafe_method_mut {
 #[macro_export]
 macro_rules! unsafe_method_val {
     ($self:expr, $fn:ident $(, $arg:expr)* ) => {
-        $crate::unsafe_method_internal_normalize!{ $self, () $fn $(, $arg)* }
+        $crate::unsafe_method_internal_normalize!{ $self, () () $fn $(, $arg)* }
     }
 }
 
 #[doc(hidden)]
 #[macro_export]
-/// - `$( $normalizer_part:tt )*` - an expression suffix that gets appended to $self (including any
+/// - `$( $normalizer_suffix_part:tt )*` - an expression suffix that gets appended to $self (including any
 ///   leading dot, if needed). For `unsafe_method_ref` and `unsafe_method`_it "normalizes" the given
 ///   `$self`` to the type expected (shared reference `&self` or mutable reference `&mut`). For
 ///   unsafe_method_val it's empty.
 macro_rules! unsafe_method_internal_normalize {
-    ($self:expr, ( $( $normalizer_part:tt )* ) $fn:ident $(, $arg:expr)+ ) => {
+    ($self:expr, ( $( $normalizer_prefix_part:tt )* )  ( $( $normalizer_suffix_part:tt )* ) $fn:ident $(, $arg:expr)+ ) => {
         // Enclosed in a block, so that
         // 1. the result can be used as a value in an outer expression,and
         // 2. local variables don't conflict with the outer scope
@@ -261,7 +261,7 @@ macro_rules! unsafe_method_internal_normalize {
             use $crate::AsRefOrMut as _;
             let (tuple_tree, receiver) = (
                 $crate::unsafe_fn_internal_build_tuple_tree!{ $($arg),+ },
-                ( $self )$( $normalizer_part )*
+                ( $self )$( $normalizer_suffix_part )*
             );
             $crate::unsafe_method_internal! {
                 receiver,
@@ -273,10 +273,10 @@ macro_rules! unsafe_method_internal_normalize {
         }
     };
 
-    ($self:expr, ($( $normalizer_part:tt )*) $fn:ident ) => {
+    ($self:expr, ( $( $normalizer_prefix_part:tt )* ) ( $( $normalizer_suffix_part:tt )* ) $fn:ident ) => {
         {
             use $crate::AsRefOrMut as _;
-            let receiver = ( $self )$( $normalizer_part )*;
+            let receiver = ( $self )$( $normalizer_suffix_part )*;
             #[allow(unsafe_code)]
             unsafe {
                 receiver. $fn()
