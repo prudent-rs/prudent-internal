@@ -50,7 +50,7 @@ extern crate alloc;
 ///     tuple access works with integer literals only.
 ///
 /// Solution: A "tuple tree". It's an unbalanced binary tree. See it expanded:
-/// - [simple_examples/fn_add_three/src/lib.rs](https://github.com/peter-lyons-kehl/prudent/blob/main/simple_examples/fn_add_three/src/lib.rs)
+/// - [simple_examples/fn_add_three/src/main.rs](https://github.com/peter-lyons-kehl/prudent/blob/main/simple_examples/fn_add_three/src/main.rs)
 /// - `cd simple_examples/fn_add_three`
 /// - `cargo expand`
 ///
