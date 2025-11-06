@@ -215,8 +215,9 @@ pub trait AsRefOrMut {
 }
 impl<T> AsRefOrMut for T {}
 
-/// Invoke an unsafe method that has a shared `Self` reference as a receiver: `&self`. Like
-/// [unsafe_fn], but:
+/// Invoke an unsafe method that has a shared reference as a receiver: `&self`.
+///
+/// Like [unsafe_fn], but
 /// - This accepts a receiver `&self`, `&mut self` and `self` (which is then referenced, so it's
 ///   **not** moved/copied).
 /// - This stores `self` in a variable outside of the generated `unsafe {...}`.
