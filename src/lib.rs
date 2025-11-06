@@ -94,6 +94,8 @@ extern crate alloc;
 ///     }
 /// };
 /// ```
+///
+/// This does NOT accept closures, since, as of Rust 1.91.0, closures cannot be `unsafe`.
 #[macro_export]
 macro_rules! unsafe_fn {
     ( $fn:expr $(, $arg:expr)+ ) => {
@@ -184,108 +186,53 @@ macro_rules! unsafe_fn_internal_access_tuple_tree_field {
 }
 //-------------
 
-// No need to seal this trait, as it's implemented for all types.
-/// Trait to accept/"normalize" a given receiver `self` from `T` to `&T`, or from `T` to `&mut T`.
-/// See [AsRefOrMut::prudent_normalize_value_self_as_ref].
-///
-/// Blanket implemented for all types.
-pub trait AsRefOrMut {
-    /// Serves to accept/"normalize" a given receiver `self` that is of type `T`, `&T` or `&mut T`, so that
-    /// the result is always of type `&T`. That way we can store its result in a local variable,
-    /// even if `self` was passed in by value (rather than by reference) without moving it.
-    ///
-    /// We call this method with the standard dot notation, and that's why it has such a long name,
-    /// so it doesn't conflict with user-defined inherent methods or with other traits. We do NOT
-    /// call this as `AsRefOrMutOrValue::prudent_normalize_value_self_as_ref(...)`, as that would
-    /// require the receiver expression to be a reference (rather than allowing a value), and that's
-    /// a restriction we want to prevent.
-    ///
-    /// Used by [unsafe_method_ref].
-    fn prudent_normalize_value_self_as_ref(&self) -> &Self {
-        self
-    }
-
-    /// Like [AsRefOrMut::prudent_normalize_value_self_as_ref], but this "normalizes" the given
-    /// receiver to a mutable reference.
-    ///
-    /// Used by [unsafe_method_mut].
-    fn prudent_normalize_value_self_as_mut(&mut self) -> &mut Self {
-        self
-    }
-}
-impl<T> AsRefOrMut for T {}
-
-/// Invoke an unsafe method that has a shared reference as a receiver: `&self`.
-///
-/// Like [unsafe_fn], but
-/// - This accepts a receiver `&self`, `&mut self` and `self` (which is then referenced, so it's
-///   **not** moved/copied).
-/// - This stores `self` in a variable outside of the generated `unsafe {...}`.
-/// - $fn can **NOT** be an expression or a path (which doesn't work in standard methods calls), but
-///   only an identifier.
+/// Invoke an `unsafe`` method. Like [unsafe_fn], but
+/// - This accepts a receiver `&self`, `&mut self` and `self`. TODO Box/Rc/Arc, dyn?
+/// - This treats `self` as if in an `unsafe {...}` block.
+/// - $fn can **NOT** be an expression or a qualified path (which doesn't work in standard methods
+///   calls anyways), but only an identifier.
 #[macro_export]
-macro_rules! unsafe_method_ref {
-    ($self:expr, $fn:ident $(, $arg:expr)* ) => {
-        //$crate::unsafe_method_internal_normalize!{ $self, () (.prudent_normalize_value_self_as_ref()) $fn $(, $arg)* }
-
-        // const-friendly; if it creates a double reference &&, because the given expression already
-        // yields a reference, that's OK. Rust will dereference it 2x.
-        $crate::unsafe_method_internal_normalize!{ $self, (&) () $fn $(, $arg)* }
-    }
-}
-
-/// Like [unsafe_method_ref], but for methods whose receiver is a mutable reference: `&mut self`.
-#[macro_export]
-macro_rules! unsafe_method_mut {
-    ($self:expr, $fn:ident $(, $arg:expr)* ) => {
-        // @TODO normal. prefix: &mut
-        $crate::unsafe_method_internal_normalize!{ $self, () (.prudent_normalize_value_self_as_mut()) $fn $(, $arg)* }
-    }
-}
-
-/// Like [unsafe_method_ref], but for methods whose receiver is passed by value: `self` (that is,
-/// copied if it's [core::marker::Copy], or moved otherwise).
-#[macro_export]
-macro_rules! unsafe_method_val {
-    ($self:expr, $fn:ident $(, $arg:expr)* ) => {
-        $crate::unsafe_method_internal_normalize!{ $self, () () $fn $(, $arg)* }
-    }
-}
-
-#[doc(hidden)]
-#[macro_export]
-/// - `$( $normalizer_suffix_part:tt )*` - an expression suffix that gets appended to $self (including any
-///   leading dot, if needed). For `unsafe_method_ref` and `unsafe_method`_it "normalizes" the given
-///   `$self`` to the type expected (shared reference `&self` or mutable reference `&mut`). For
-///   unsafe_method_val it's empty.
-macro_rules! unsafe_method_internal_normalize {
-    ($self:expr, ( $( $normalizer_prefix_part:tt )* )  ( $( $normalizer_suffix_part:tt )* ) $fn:ident $(, $arg:expr)+ ) => {
-        // Enclosed in a block, so that
-        // 1. the result can be used as a value in an outer expression,and
-        // 2. local variables don't conflict with the outer scope
+macro_rules! unsafe_method {
+    ($self:expr, $fn:ident $(, $arg:expr)+ ) => {
+        // Enclosed in a block, so that the result can be used as a value in an outer expression
+        // without upsetting operator precedence.
         {
-            use $crate::AsRefOrMut as _;
-            let (tuple_tree, receiver) = (
-                $crate::unsafe_fn_internal_build_tuple_tree!{ $($arg),+ },
-                $( $normalizer_prefix_part )* ( $self ) $( $normalizer_suffix_part )*
-            );
-            $crate::unsafe_method_internal! {
-                receiver,
-                $fn,
-                tuple_tree,
-                ( $( $arg ),* ),
-                (0)
+            if false {
+                let (tuple_tree, mut receiver) = (
+                    $crate::unsafe_fn_internal_build_tuple_tree!{ $($arg),+ },
+                    $self
+                );
+                // Assign the result, in case the method is `#[must_use]`
+                let _ = $crate::unsafe_method_internal! {
+                    receiver,
+                    $fn,
+                    tuple_tree,
+                    ( $( $arg ),* ),
+                    (0)
+                };
+                unreachable!()
+            } else {
+                unsafe { $self. $fn ( $( $arg ),* ) }
             }
         }
     };
 
-    ($self:expr, ( $( $normalizer_prefix_part:tt )* ) ( $( $normalizer_suffix_part:tt )* ) $fn:ident ) => {
+    ($self:expr, $fn:ident ) => {
+        // Enclosed in a block, so that the result can be used as a value in an outer expression
+        // without upsetting operator precedence.
         {
-            use $crate::AsRefOrMut as _;
-            let receiver = $( $normalizer_prefix_part )* ( $self ) $( $normalizer_suffix_part )*;
-            #[allow(unsafe_code)]
-            unsafe {
-                receiver. $fn()
+            if false {
+                let mut receiver = $self;
+                // Assign the result, in case the method is `#[must_use]`
+                let _ = {
+                    #[allow(unsafe_code)]
+                    unsafe {
+                        receiver. $fn()
+                    }
+                };
+                unreachable!()
+            } else {
+                $self. $fn ()
             }
         }
     };
@@ -318,12 +265,17 @@ macro_rules! unsafe_method_internal {
          )
       ),*
     ) => {
-        #[allow(unsafe_code)]
-        unsafe {
-            $self. $fn( $(
-                    $crate::unsafe_fn_internal_access_tuple_tree_field!{ $tuple_tree, $($accessor_part),+ }
-                ),*
-            )
+        // Extra block needed, in case the result is assigned to a variable. Otherwise surprise:
+        // "attributes on expressions are experimental"
+        // https://github.com/rust-lang/rust/issues/15701
+        {
+            #[allow(unsafe_code)]
+            unsafe {
+                $self. $fn( $(
+                        $crate::unsafe_fn_internal_access_tuple_tree_field!{ $tuple_tree, $($accessor_part),+ }
+                    ),*
+                )
+            }
         }
     };
 }
@@ -476,4 +428,3 @@ macro_rules! unsafe_set {
 //
 // #![feature(stmt_expr_attributes)]
 //
-// (#[deny(unsafe_code)] s ).prudent_normalize_value_self_as_mut();
