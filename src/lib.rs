@@ -59,8 +59,8 @@ extern crate alloc;
 /// when some parameters were tuples/complex expressions.
 ///
 ///  @TODO replace with examples/ :
-/// ```
-#[doc = include_str!("../simple_examples/fn_add_three/src/main.rs")]
+/// ```compile_fail
+#[doc = include_str!("../violation_examples/unsafe_fn/zero_args/fn_expression.rs")]
 /// ```
 /// This does NOT accept closures, since, (as of Rust 1.91.0) closures cannot be `unsafe`.
 #[macro_export]
@@ -81,6 +81,16 @@ macro_rules! unsafe_fn {
         }
     };
 }
+
+// Error numbers are validated with `cargo +nightly test`, but NOT with
+// - `cargo nightly` nor
+// - RUSTDOCFLAGS="..." cargo +nightly doc ...
+//
+/// ```compile_fail,E0133
+#[doc = include_str!("../violation_examples/unsafe_fn/zero_args/fn_expression.rs")]
+/// ```
+#[cfg(doctest)]
+pub const _: () = {};
 
 /// Invoke an `unsafe` method. Like [unsafe_fn], but
 /// - This accepts a receiver `&self`, `&mut self` and `self`. TODO Box/Rc/Arc, dyn?
