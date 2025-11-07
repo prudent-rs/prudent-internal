@@ -64,13 +64,13 @@ extern crate alloc;
 ///
 /// Zero arguments. The given expression (which evaluates to the function to be called) is `unsafe.`
 /// ```compile_fail
-#[doc = include_str!("../violation_coverage/unsafe_fn/zero_args/fn_expression.rs")]
+#[doc = include_str!("../violations_coverage/unsafe_fn/zero_args/fn_expression.rs")]
 /// ```
 /// ```compile_fail
-#[doc = include_str!("../violation_coverage/unsafe_fn/some_args/fn_expression.rs")]
+#[doc = include_str!("../violations_coverage/unsafe_fn/some_args/fn_expression.rs")]
 /// ```
 /// ```compile_fail
-#[doc = include_str!("../violation_coverage/unsafe_fn/some_args/arg.rs")]
+#[doc = include_str!("../violations_coverage/unsafe_fn/some_args/arg.rs")]
 /// ```
 #[macro_export]
 macro_rules! unsafe_fn {
@@ -98,19 +98,19 @@ macro_rules! unsafe_fn {
 // - RUSTDOCFLAGS="..." cargo +nightly doc ...
 //
 /// ```compile_fail,E0133
-#[doc = include_str!("../violation_coverage/unsafe_fn/zero_args/fn_expression.rs")]
+#[doc = include_str!("../violations_coverage/unsafe_fn/zero_args/fn_expression.rs")]
 /// ```
 #[cfg(doctest)]
 pub const _: () = {};
 
 /// ```compile_fail,E0133
-#[doc = include_str!("../violation_coverage/unsafe_fn/some_args/fn_expression.rs")]
+#[doc = include_str!("../violations_coverage/unsafe_fn/some_args/fn_expression.rs")]
 /// ```
 #[cfg(doctest)]
 pub const _: () = {};
 
 /// ```compile_fail,E0133
-#[doc = include_str!("../violation_coverage/unsafe_fn/some_args/arg.rs")]
+#[doc = include_str!("../violations_coverage/unsafe_fn/some_args/arg.rs")]
 /// ```
 #[cfg(doctest)]
 pub const _: () = {};
@@ -160,6 +160,16 @@ macro_rules! unsafe_static_set {
             }
         }
     }};
+    // @TODO
+    ($static:path, ( $( $suffix:tt )* ) $val:expr) => {{
+        if false {
+            // Pretend to copy the variable, even if it's not Copy
+            //let var = 
+            
+        } else {
+
+        }
+    }}
 }
 
 /// Deref a pointer (either `const` or `mut`) and yield a read-only reference.
