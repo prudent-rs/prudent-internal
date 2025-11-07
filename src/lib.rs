@@ -77,7 +77,7 @@ extern crate alloc;
 /// unsafe fn return_array() -> [bool; 1] {
 ///     [true]
 /// }
-/// 
+///
 /// let _b = unsafe_fn!( return_array)[0];
 /// ```
 #[macro_export]
@@ -160,7 +160,7 @@ macro_rules! unsafe_method {
 /// in `unsafe{...}`.
 ///
 /// TODO:
-/// 
+///
 /// NOT for `static` variables (or their fields/components) of `union` types.
 /// ```
 /// {
@@ -168,7 +168,7 @@ macro_rules! unsafe_method {
 ///
 ///     let mptr = &raw mut S;
 ///     unsafe { *mptr = (false,); }
-/// 
+///
 ///     let _mref = unsafe {&mut *mptr};
 ///     
 ///     // The following IS accepted:
@@ -184,7 +184,7 @@ macro_rules! unsafe_method {
 ///     static mut ARR: [bool; 1] = [true];
 ///     let mptr = &raw mut ARR;
 ///     unsafe { *mptr = [false]; }
-/// 
+///
 ///     let _mref = unsafe {&mut *mptr};
 ///     *_mref = [false];
 ///     _mref[ 0 ] = true;
@@ -215,14 +215,11 @@ macro_rules! unsafe_static_set {
     // @TODO implement + rename, so it's for union fields, too:
     //
     // @TODO similar to read union fields
-    ($static:ident { $( $suffix:tt )* } $val:expr) => {{
-        }
-    };
+    ($static:ident { $( $suffix:tt )* } $val:expr) => {{}};
     ($static:path { $( $suffix:tt )* } $val:expr) => {{
         if false {
-            
-            let mptr =  &raw mut $static;
-            let mref = unsafe {&mut *mptr};
+            let mptr = &raw mut $static;
+            let mref = unsafe { &mut *mptr };
             unreachable!()
         } else {
         }
