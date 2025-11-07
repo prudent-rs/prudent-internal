@@ -150,6 +150,9 @@ macro_rules! unsafe_fn {
         // 1. the result can be used as a value in an outer expression, and
         // 2. local variables don't conflict with the outer scope
         {
+            //@TODO remove accessors. Instead:
+            // - if false {...}: assign the tuple. Then unreachable!();
+            // - else {...}: original full call.
             let (tuple_tree, fun) = ($crate::unsafe_fn_internal_build_tuple_tree!{ $($arg),+ }, $fn);
 
             $crate::unsafe_fn_internal_build_accessors_and_call! {
@@ -408,8 +411,10 @@ macro_rules! unsafe_mut {
     }};
 }
 
-#[doc(hidden)]
 /// This is an "early" type check for [unsafe_val], so that the user knows to use [unsafe_val] with [core::marker::Copy] types only.
+///
+/// NOT a part of public API!
+#[doc(hidden)]
 pub const fn expect_copy_ptr<T: Copy>(_: *const T) {}
 
 /// Get a (copy of) value from where the pointer points. For [core::marker::Copy] types only.
