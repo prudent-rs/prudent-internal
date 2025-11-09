@@ -97,10 +97,8 @@ extern crate alloc;
 #[macro_export]
 macro_rules! unsafe_fn {
     ( $fn:expr $(, $arg:expr)* ) => {
-        // Enclosed in a block, so that the result can be used as a value in an outer expression.
-        //
-        // @TODO here and elsewhere - test that this {...} enclosing works with array access suffix
-        // [usize_idx]. Otherwise test if (...) would work instead.
+        // Enclosed in (...) and NOT in {...}. Why? Because the later does NOT work if the result is
+        // an array/slice and then it's indexed with array access suffix [usize_idx].
         (
             if false {
                 let _ = $fn;
@@ -164,9 +162,8 @@ pub const fn shared_to_mut<T>(_: &T) -> &mut T {
 #[macro_export]
 macro_rules! unsafe_method {
     ($self:expr, $fn:ident $(, $arg:expr)* ) => {
-        // Enclosed in a block, so that the result can be used as a value in an outer expression
-        // without upsetting operator precedence.
-        {
+        // See unsafe_fn for why here we enclose in (...) and not in {...}.
+        (
             if false {
                 if false {
                     // This block makes an instance/owned value of the same type as $self. The
@@ -176,9 +173,20 @@ macro_rules! unsafe_method {
                     //
                     // We **cannot** move/take/assign $self by value, in case it's a non-Copy
                     // **static** variable.
+                    //
+                    // @TODO If NOT #allow_unsafe, inject: #[forbid(unsafe_code)]
                     let rref = &( $self );
+                    //
                     let mref = ::prudent::shared_to_mut(rref);
                     let mut owned_receiver = ::core::mem::replace(mref, unsafe{ ::core::mem::zeroed() });
+                    // Detect code where unsafe_fn! or unsafe_method! is not needed at all. That is,
+                    // where a function/method used to be `unsafe`, but it stopped being so.
+                    //
+                    // @TODO
+                    //
+                    // 1. store args and then inject them here, instead of $arg:
+                    //
+                    // 2. #[forbid(unused_unsafe)]
                     let _ = unsafe { owned_receiver. $fn( $( $arg ),* ) };
                 } else {
                     $( let _ = $arg; )*
@@ -186,17 +194,15 @@ macro_rules! unsafe_method {
                 unreachable!()
             } else {
                 #[allow(unsafe_code)]
-                //@TODO: for unsafe_fn, too:
+                // If $self includes `unsafe {...}`, but no #allow_unsafe, that would trigger
+                // "unused_unsafe".
                 //
-                // If $self or any $arg include `unsafe {...}`, that would trigger "unused_unsafe".
-                //
-                // Unfortunately, because of this, we can't detect code where unsafe_fn! or
-                // unsafe_method! is not needed at all. For example, if a function/method use to be
-                // `unsafe`, and it stopped being so.
+                // @TODO If NOT #allow_unsafe, inject #[forbid(unused_unsafe)]. Otherwise inject
+                // #[expect(unused_unsafe)].
                 #[allow(unused_unsafe)]
                 unsafe { $self. $fn ( $( $arg ),* ) }
             }
-        }
+        )
     };
     //@TODO
     (#allow_unsafe $self:expr, $fn:ident $(, $arg:expr)* ) => {
