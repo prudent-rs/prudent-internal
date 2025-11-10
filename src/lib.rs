@@ -83,7 +83,7 @@ extern crate alloc;
 ///     [true]
 /// }
 ///
-/// let _b = unsafe_fn!( return_array)[0];
+/// let _ = unsafe_fn!( return_array)[0];
 /// ```
 /// ```
 /// # use prudent::unsafe_fn;
@@ -96,9 +96,7 @@ extern crate alloc;
 /// ```
 #[macro_export]
 macro_rules! unsafe_fn {
-    ( $fn:expr $(, $arg:expr)* ) => {
-        // Enclosed in (...) and NOT in {...}. Why? Because the later does NOT work if the result is
-        // an array/slice and then it's indexed with array access suffix [usize_idx].
+    /*( $fn:expr $(, $arg:expr)* ) => {
         (
             if false {
                 #[deny(unused_unsafe)]
@@ -112,6 +110,39 @@ macro_rules! unsafe_fn {
                 #[allow(unsafe_code)]
                 unsafe {
                     ( $fn )( $( $arg ),* )
+                }
+            }
+        )
+    };*/
+    ( $fn:expr $(, $arg:expr)+ ) => {
+        // Enclosed in (...) and NOT in {...}. Why? Because the later does NOT work if the result is
+        // an array/slice and then it's indexed with array access suffix [usize_idx].
+        (
+            // Enclosed in a block, so that
+            // 1. the result can be used as a value in an outer expression, and
+            // 2. local variables don't conflict with the outer scope
+            {
+                #[deny(unused_unsafe)]
+                let (tuple_tree, fun) = ($crate::unsafe_fn_internal_build_tuple_tree!{ $($arg),+ }, $fn);
+
+                $crate::unsafe_fn_internal_build_accessors_and_call! {
+                    fun,
+                    tuple_tree,
+                    ( $( $arg ),* ),
+                    (0)
+                }
+            }
+        )
+    };
+    ($fn:expr) => {
+        (
+            {
+                #[deny(unused_unsafe)]
+                let fun = $fn;
+                #[allow(unsafe_code)]
+                #[deny(unused_unsafe)]
+                unsafe {
+                    fun()
                 }
             }
         )
@@ -145,8 +176,71 @@ pub const _: () = {};
 #[cfg(doctest)]
 pub const _: () = {};
 
+#[doc(hidden)]
+#[macro_export]
+macro_rules! unsafe_fn_internal_build_tuple_tree {
+    // Construct the tuple_tree. Recursive:
+    ( $first:expr, $($rest:expr),+ ) => {
+        (
+            $first, $crate::unsafe_fn_internal_build_tuple_tree!{ $($rest),+ }
+        )
+    };
+    ( $last:expr) => {
+        ($last,)
+    };
+}
+
+#[doc(hidden)]
+#[macro_export]
+macro_rules! unsafe_fn_internal_build_accessors_and_call {
+    // Access tuple_tree parts and get ready to call the function:
+    ( $fn:expr, $tuple_tree:ident,
+     ( $_first_arg:expr, $($other_arg:expr),+ ),
+     $( ( $($accessor_part:tt),+
+        )
+     ),*
+    ) => {
+        $crate::unsafe_fn_internal_build_accessors_and_call!{
+            $fn, $tuple_tree, ( $($other_arg),+ ),
+            // Insert a new accessor to front (left): 0.
+            (0),
+            $(  // Prepend 1 to each supplied/existing accessor
+                 ( 1, $($accessor_part),+ )
+            ),*
+        }
+    };
+    // All accessors are ready, so call the function:
+    ( $fn:expr, $tuple_tree:ident,
+      ( $_last_or_only_arg:expr ),
+      $( ( $($accessor_part:tt),+
+         )
+      ),*
+    ) => {
+        #[allow(unsafe_code)]
+        #[deny(unused_unsafe)]
+        unsafe {
+            $fn( $(
+                    $crate::unsafe_fn_internal_access_tuple_tree_field!{ $tuple_tree, $($accessor_part),+ }
+                ),*
+            )
+        }
+    };
+}
+
+#[doc(hidden)]
+#[macro_export]
+/// INTERNAL. Do NOT use directly - subject to change.
+///
+/// Expand an accessor group/list to access a field in the tuple_tree.
+macro_rules! unsafe_fn_internal_access_tuple_tree_field {
+    ( $tuple_tree:ident, $($accessor_part:tt),* ) => {
+        $tuple_tree $(. $accessor_part )*
+    };
+}
+//-------------
+
 /// NOT a part of public API. Pretend to get a mutable reference from a shared reference. For
-/// internal/generated compile-time checks only.
+/// internal/generated **compile-time** checks only.
 #[doc(hidden)]
 pub const fn shared_to_mut<T>(_: &T) -> &mut T {
     unreachable!()
@@ -175,7 +269,7 @@ macro_rules! unsafe_method {
         $( ~allow_unsafe  $( { $allow_unsafe_empty_indicator:tt  } )? )?
         $self:expr, $fn:ident $(, $arg:expr )*
      ) => {
-        ::prudent::unsafe_method_internal!(
+        $crate::unsafe_method_internal!(
             $( ~allow_unsafe  $( { $allow_unsafe_empty_indicator  } )? )?
             $self, $fn $(, $arg )*
         )
@@ -184,7 +278,7 @@ macro_rules! unsafe_method {
         $( ~expect_unsafe $( { $expect_unsafe_empty_indicator:tt } )? )?
         $self:expr, $fn:ident $(, $arg:expr )*
      ) => {
-        ::prudent::unsafe_method_internal!(
+        $crate::unsafe_method_internal!(
             $( ~expect_unsafe  $( { $expect_unsafe_empty_indicator  } )? )?
             $self, $fn $(, $arg )*
         )
@@ -231,7 +325,7 @@ macro_rules! unsafe_method_internal {
                         rref
                     };
                     //
-                    let mref = ::prudent::shared_to_mut(rref);
+                    let mref = $crate::shared_to_mut(rref);
                     let mut owned_receiver = ::core::mem::replace(mref, unsafe{ ::core::mem::zeroed() });
                     // @TODO
                     //
