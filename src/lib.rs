@@ -101,8 +101,12 @@ macro_rules! unsafe_fn {
         // an array/slice and then it's indexed with array access suffix [usize_idx].
         (
             if false {
+                #[deny(unused_unsafe)]
                 let _ = $fn;
-                $( let _ = $arg; )*
+                $(
+                    #[deny(unused_unsafe)]
+                    let _ = $arg;
+                )*
                 unreachable!()
             } else {
                 #[allow(unsafe_code)]
@@ -211,6 +215,7 @@ macro_rules! unsafe_method_internal {
                     // **static** variable.
                     let rref = {
                         #[rustfmt::skip]
+                        #[deny(unused_unsafe)]
                         // @TODO simplify once https://github.com/rust-lang/rust/issues/15701
                         // (attributes on expressions)
                         #[deny(unsafe_code)]
@@ -240,7 +245,10 @@ macro_rules! unsafe_method_internal {
                     // 2. #[deny(unused_unsafe)]
                     let _ = unsafe { owned_receiver. $fn( $( $arg ),* ) };
                 } else {
-                    $( let _ = $arg; )*
+                    $(
+                        #[deny(unused_unsafe)]
+                        let _ = $arg;
+                    )*
                 }
                 unreachable!()
             } else {
