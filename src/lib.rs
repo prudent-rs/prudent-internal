@@ -269,7 +269,7 @@ macro_rules! unsafe_method {
         $( ~allow_unsafe  $( { $allow_unsafe_empty_indicator:tt  } )? )?
         $self:expr, $fn:ident $(, $arg:expr )*
      ) => {
-        $crate::unsafe_method_internal!(
+        $crate::unsafe_method_internal_check_self_etc!(
             $( ~allow_unsafe  $( { $allow_unsafe_empty_indicator  } )? )?
             $self, $fn $(, $arg )*
         )
@@ -278,28 +278,40 @@ macro_rules! unsafe_method {
         $( ~expect_unsafe $( { $expect_unsafe_empty_indicator:tt } )? )?
         $self:expr, $fn:ident $(, $arg:expr )*
      ) => {
-        $crate::unsafe_method_internal!(
+        $crate::unsafe_method_internal_check_self_etc!(
             $( ~expect_unsafe  $( { $expect_unsafe_empty_indicator  } )? )?
             $self, $fn $(, $arg )*
         )
      };
 }
 
+/// ```compile_fail,E0133
+#[doc = include_str!("../violations_coverage/unsafe_method/some_args/arg.rs")]
+/// ```
+#[cfg(doctest)]
+pub const _: () = {};
+
+/// ```compile_fail,E0133
+#[doc = include_str!("../violations_coverage/unsafe_method/some_args/self.rs")]
+/// ```
+#[cfg(doctest)]
+pub const _: () = {};
+
 #[doc(hidden)]
 #[macro_export]
-macro_rules! unsafe_method_internal {
+macro_rules! unsafe_method_internal_check_self_etc {
     (
-        $( ~expect_unsafe $( { $expect_unsafe_empty_indicator:tt } )? )?
         $( ~allow_unsafe  $( { $allow_unsafe_empty_indicator:tt  } )? )?
+        $( ~expect_unsafe $( { $expect_unsafe_empty_indicator:tt } )? )?
         $self:expr, $fn:ident $(, $arg:expr )*
      ) => {
         // See unsafe_fn for why here we enclose in (...) and not in {...}.
         (
             if false {
                 if false {
-                    // This block "makes" an instance/owned value of the same type as $self. (Of
-                    // course, the instance is invalid - this is for compile-time checks only, hence
-                    // `if false {...}`.)
+                    // This block "makes" owned_receiver, an instance/owned value of the same type
+                    // as $self. (Of course, the instance is invalid - this is for compile-time
+                    // checks only, hence `if false {...}`.)
                     //
                     // Then we simulate invocation of the given method inside `unsafe {...}``, BUT
                     // without evaluating the given $self expression inside that same `unsafe
@@ -339,6 +351,7 @@ macro_rules! unsafe_method_internal {
                     // 2. #[deny(unused_unsafe)]
                     let _ = unsafe { owned_receiver. $fn( $( $arg ),* ) };
                 } else {
+                    // @TODO eliminate
                     $(
                         #[deny(unused_unsafe)]
                         let _ = $arg;
@@ -346,9 +359,14 @@ macro_rules! unsafe_method_internal {
                 }
                 unreachable!()
             } else {
-                #[allow(unsafe_code)]
-                // If $self includes `unsafe {...}`, but no ~allow_unsafe or ~expect_unsafe, that
-                // would trigger "unused_unsafe". Let's notify the user:
+                //compile_error!("TODO move to unsafe_method_internal_check_args_etc");
+                $crate::unsafe_method_internal_check_args_etc!(
+                    $( ~allow_unsafe  $( { $allow_unsafe_empty_indicator  } )? )?
+                    $( ~expect_unsafe  $( { $expect_unsafe_empty_indicator  } )? )?
+                    $self, $fn $(, $arg )*
+                )
+                /*#[allow(unsafe_code)]
+                // Notify if $self includes `unsafe {...}`, but no ~allow_unsafe or ~expect_unsafe:
                 #[deny(unused_unsafe)]
                 $(
                     $( { $allow_unsafe_empty_indicator } )?
@@ -358,24 +376,107 @@ macro_rules! unsafe_method_internal {
                     $( { $expect_unsafe_empty_indicator } )?
                     #[expect(unused_unsafe)]
                 )?
-                unsafe { $self. $fn ( $( $arg ),* ) }
+                unsafe { $self. $fn ( $( $arg ),* ) }*/
             }
         )
-    };
+    }
 }
 
-/// ```compile_fail,E0133
-#[doc = include_str!("../violations_coverage/unsafe_method/some_args/arg.rs")]
-/// ```
-#[cfg(doctest)]
-pub const _: () = {};
+#[doc(hidden)]
+#[macro_export]
+macro_rules! unsafe_method_internal_check_args_etc {
+    (
+        $( ~expect_unsafe $( { $expect_unsafe_empty_indicator:tt } )? )?
+        $( ~allow_unsafe  $( { $allow_unsafe_empty_indicator:tt  } )? )?
+        $self:expr, $fn:ident $(, $arg:expr )+
+     ) => {({
+                let tuple_tree =
+                    $crate::unsafe_fn_internal_build_tuple_tree!{ $($arg),+ };
 
-/// ```compile_fail,E0133
-#[doc = include_str!("../violations_coverage/unsafe_method/some_args/self.rs")]
-/// ```
-#[cfg(doctest)]
-pub const _: () = {};
+                $crate::unsafe_method_internal_build_accessors_check_args_call! {
+                    $( ~allow_unsafe  $( { $allow_unsafe_empty_indicator  } )? )?
+                    $( ~expect_unsafe  $( { $expect_unsafe_empty_indicator  } )? )?
+                    $self,
+                    $fn,
+                    tuple_tree,
+                    ( $( $arg ),* ),
+                    (0)
+                }
+    })};
+    (
+        $( ~expect_unsafe $( { $expect_unsafe_empty_indicator:tt } )? )?
+        $( ~allow_unsafe  $( { $allow_unsafe_empty_indicator:tt  } )? )?
+        $self:expr, $fn:ident
+     ) => {({
+                #[allow(unsafe_code)]
+                // Notify if $self includes `unsafe {...}`, but no ~allow_unsafe or ~expect_unsafe:
+                #[deny(unused_unsafe)]
+                $(
+                    $( { $allow_unsafe_empty_indicator } )?
+                    #[allow(unused_unsafe)]
+                )?
+                $(
+                    $( { $expect_unsafe_empty_indicator } )?
+                    #[expect(unused_unsafe)]
+                )?
+                let result = unsafe { $self. $fn () };
+                result
+    })};
+}
 
+#[doc(hidden)]
+#[macro_export]
+macro_rules! unsafe_method_internal_build_accessors_check_args_call {
+    // Access tuple_tree parts and get ready to call the method:
+    (
+     $( ~expect_unsafe $( { $expect_unsafe_empty_indicator:tt } )? )?
+     $( ~allow_unsafe  $( { $allow_unsafe_empty_indicator:tt  } )? )?
+     $self:expr, $fn:ident, $tuple_tree:ident,
+     ( $_first_arg:expr, $($other_arg:expr),+ ),
+     $( ( $($accessor_part:tt),+
+        )
+     ),*
+    ) => {
+        $crate::unsafe_method_internal_build_accessors_check_args_call!{
+            $( ~allow_unsafe  $( { $allow_unsafe_empty_indicator  } )? )?
+            $( ~expect_unsafe  $( { $expect_unsafe_empty_indicator  } )? )?
+            $self, $fn, $tuple_tree, ( $($other_arg),+ ),
+            // Insert a new accessor to front (left): 0.
+            (0),
+            $(  // Prepend 1 to each supplied/existing accessor
+                 ( 1, $($accessor_part),+ )
+            ),*
+        }
+    };
+    // All accessors are ready. Call the function:
+    (
+     $( ~expect_unsafe $( { $expect_unsafe_empty_indicator:tt } )? )?
+     $( ~allow_unsafe  $( { $allow_unsafe_empty_indicator:tt  } )? )?
+     $self:expr, $fn:ident, $tuple_tree:ident,
+      ( $_last_or_only_arg:expr ),
+      $( ( $($accessor_part:tt),+
+         )
+      ),*
+    ) => {({
+        #[allow(unsafe_code)]
+        #[deny(unused_unsafe)]
+        $(
+            $( { $allow_unsafe_empty_indicator } )?
+            #[allow(unused_unsafe)]
+        )?
+        $(
+            $( { $expect_unsafe_empty_indicator } )?
+            #[expect(unused_unsafe)]
+        )?
+        let result = unsafe {
+            $self. $fn( $(
+                    $crate::unsafe_fn_internal_access_tuple_tree_field!{ $tuple_tree, $($accessor_part),+ }
+                ),*
+            )
+        };
+        result
+    })};
+}
 //-------------
 
 /// Set a value of a `static mut` variable or its (sub...-)field, but isolate `unsafe {...}` only to
