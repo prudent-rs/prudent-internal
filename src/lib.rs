@@ -374,7 +374,7 @@ macro_rules! expecting_unsafe_fn_path {
 ///     unsafe_fn!( return_mut_ref_array)[0] = true;
 /// }
 /// ```
-/// The same, but without a leak:
+/// The same, but the function takes an argument (and no leak):
 /// ```
 /// # use prudent::unsafe_fn;
 /// unsafe fn return_same_mut_ref<T>(mref: &mut T) -> &mut T {
@@ -579,7 +579,11 @@ pub const fn shared_to_mut<T>(_: &T) -> &mut T {
     unreachable!()
 }
 
-/// Invoke an `unsafe` method. Like [unsafe_fn], but
+/// Invoke an `unsafe` method. For methods that have a receiver parameter (`&self`, `&mut self`,
+/// `self`). For associated functions (implemented for a type but with no receiver) use `unsafe_fn`,
+/// and pass the qualified name of the associated function to it.
+///
+/// Like [unsafe_fn], but
 /// - This accepts a receiver `&self`, `&mut self` and `self`. TODO Box/Rc/Arc, dyn?
 /// - This treats `self` as if it were evaluated **outside** the `unsafe {...}` block.
 /// - $fn can **NOT** be an expression or a qualified path (which doesn't work in standard methods
@@ -590,14 +594,22 @@ pub const fn shared_to_mut<T>(_: &T) -> &mut T {
 /// - `$allow_unsafe_empty_indicator`
 ///
 /// as they are internal.
+///
 /// ```compile_fail
 ///  #![allow(clippy::needless_doctest_main)]
 #[doc = include_str!("../violations_coverage/unsafe_method/sneaked_unsafe/arg.rs")]
 /// ```
+///
 /// ```compile_fail
 ///  #![allow(clippy::needless_doctest_main)]
 #[doc = include_str!("../violations_coverage/unsafe_method/sneaked_unsafe/self_some_args.rs")]
 /// ```
+///
+/// ```compile_fail
+///  #![allow(clippy::needless_doctest_main)]
+#[doc = include_str!("../violations_coverage/unsafe_method/sneaked_unsafe/self_zero_args.rs")]
+/// ```
+///
 /// ```compile_fail
 ///  #![allow(clippy::needless_doctest_main)]
 #[doc = include_str!("../violations_coverage/unsafe_method/sneaked_unsafe/self_zero_args.rs")]
@@ -663,7 +675,8 @@ macro_rules! unsafe_method_internal_check_self_etc {
                     // {...}`` block, so that we isolate/catch any `unsafe`` code in $self.
                     //
                     // We **cannot** just move/take/assign $self by value, in case it's a non-Copy
-                    // **static** variable.
+                    // **static** variable. See also comments in
+                    // unsafe_method_internal_build_accessors_check_args_call.
                     let rref = {
                         #[rustfmt::skip]
                         #[deny(unused_unsafe)]
@@ -807,6 +820,10 @@ macro_rules! unsafe_method_internal_build_accessors_check_args_call {
             #[expect(unused_unsafe)]
         )?
         let result = unsafe {
+            // Unlike arguments, we can NOT store result of $self expression in a variable, because
+            // it would be moved, but a method with receiver by reference `&self` or `&mut self`
+            // does NOT move the instance it's called on. And if Self were `Copy`, then the
+            // reference would not point to the original instance!
             $self. $fn( $(
                     $crate::unsafe_fn_internal_access_tuple_tree_field!{ $tuple_tree, $($accessor_part),+ }
                 ),*
