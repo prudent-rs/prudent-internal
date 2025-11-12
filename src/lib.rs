@@ -45,7 +45,7 @@
     rustdoc::unescaped_backticks,
     rustdoc::redundant_explicit_links
 )]
-// doc tests
+
 #![doc(test(attr(forbid(unused, dead_code))))]
 // Workaround for https://github.com/rust-lang/rust/issues/148599
 #![doc(test(attr(allow(forbidden_lint_groups))))]
@@ -79,6 +79,15 @@ extern crate alloc;
 /// ```compile_fail
 #[doc = include_str!("../violations_coverage/unsafe_fn/sneaked_unsafe/arg.rs")]
 /// ```
+/// The target function is safe, hence no need for `unsafe_fn`. Zero args.
+/// ```compile_fail
+#[doc = include_str!("../violations_coverage/unsafe_fn/fn_unused_unsafe/zero_args.rs")]
+/// ```
+/// The target function is safe, hence no need for `unsafe_fn`. Some args.
+/// ```compile_fail
+#[doc = include_str!("../violations_coverage/unsafe_fn/fn_unused_unsafe/some_args.rs")]
+/// ```
+///
 /// ```
 /// # use prudent::unsafe_fn;
 /// unsafe fn return_array() -> [bool; 1] {
@@ -141,11 +150,14 @@ macro_rules! unsafe_fn {
             {
                 #[deny(unused_unsafe)]
                 let fun = $fn;
+
                 #[allow(unsafe_code)]
-                #[deny(unused_unsafe)]
-                unsafe {
+                //#[deny(unused_unsafe)]
+                #[forbid(unused_unsafe)]
+                let result = unsafe {
                     fun()
-                }
+                };
+                result
             }
         )
     };
@@ -350,16 +362,9 @@ macro_rules! unsafe_method_internal_check_self_etc {
                     //
                     let mref = $crate::shared_to_mut(rref);
                     let mut owned_receiver = ::core::mem::replace(mref, unsafe{ ::core::mem::zeroed() });
-                    // @TODO
-                    //
                     // Detect code where unsafe_fn! or unsafe_method! is not needed at all. That is,
                     // where a function/method used to be `unsafe`, but it stopped being so.
-                    //
-                    // @TODO
-                    //
-                    // 1. store args and then inject them here, instead of $arg:
-                    //
-                    // 2. #[deny(unused_unsafe)]
+                    #[deny(unused_unsafe)]
                     let _ = unsafe { owned_receiver. $fn( $( $arg ),* ) };
                 } else {
                     // @TODO eliminate
