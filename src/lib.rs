@@ -35,7 +35,6 @@
 #![doc = include_str!("../README.md")]
 #![cfg_attr(not(any(doc, test)), no_std)]
 #![forbid(unknown_lints)]
-
 // We can't `#![forbid(unused)]`, because our macros issue `#[allow(unused_unsafe)]`. Without that
 // unsafe_method! existed only as multiple specialized macros: unsafe_method_ref!,
 // unsafe_method_mut!... And there were problems with unintended duplicates of Copy `self` when
@@ -79,10 +78,10 @@
     rustdoc::unescaped_backticks,
     rustdoc::redundant_explicit_links
 )]
+//#![allow(macro_expanded_macro_exports_accessed_by_absolute_paths)]
 
 // Do not inject `extern crate prudent` to doctests, because load!() defines module `prudent`.
 #![doc(test(no_crate_inject))]
-
 #![doc(test(attr(deny(unused, dead_code))))]
 // Workaround for https://github.com/rust-lang/rust/issues/148599
 #![doc(test(attr(allow(forbidden_lint_groups))))]
