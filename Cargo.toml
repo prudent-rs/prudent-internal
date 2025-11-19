@@ -1,6 +1,6 @@
 [package]
 name = "prudent"
-version = "0.0.3-alpha"
+version = "0.0.3-beta"
 edition = "2018"
 
 license = "BSD-2-Clause OR Apache-2.0 OR MIT"

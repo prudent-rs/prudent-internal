@@ -1,3 +1,37 @@
+//! To use the crate without lints:
+//! 1. Invoke this macro at the top of your crate (`lib.rs`, or in your binary crates if they don't
+//!    have `lib.rs`). Like this, **with** the leading double colon `::``
+//!    ```ignore
+//!    ::prudent::load!();
+//!    ```
+//!    But, from here on, never refer to `::prudent`. Instead,
+//!    - use `prudent` in your `lib.rs` (or in the top level of your binary crates), and
+//!    - use `crate::prudent` in your modules.
+//! 2. Import (with alias(es) if there are any conflicts). This must be **without** any leading
+//!    double colon `::`!
+//!    ```ignore
+//!    // At the top level of your `lib.rs` or a binary crate:
+//!    use prudent::*;
+//!    // elsewhere:
+//!    use crate::prudent::*;
+//!    ```
+//! 3. Import in your submodules import (with alias(es if there are any conflicts):
+//!    ```ignore
+//!    use crate::prudent::*;
+//!    ```
+//!
+//! If you need lints
+//! - in doctests or custom integration tests (even if your crate is published on <crates.io>); or
+//! - if your crate is not published on <crates.io>
+//!
+//! then pass the first parameter, a relative/absolute file path to your local clone/git submodule
+//! copy/other copy of `src_linted/prudent_frontend_macros.rs`. So, instead of `#1` above, have
+//! something like:
+//! ```ignore
+//!    ::prudent::load!("../../prudent/src/front_end.rs");
+//! ```
+//!
+//! Pass a second parameter, after `->`, if you want the load in a module with name of your choice.
 #![doc = include_str!("../README.md")]
 #![cfg_attr(not(any(doc, test)), no_std)]
 #![forbid(unknown_lints)]
@@ -5,9 +39,11 @@
 // unsafe_method! existed only as multiple specialized macros: unsafe_method_ref!,
 // unsafe_method_mut!... And there were problems with unintended duplicates of Copy `self` when
 // invoking methods with the receiver being &self, that is, a shared reference.
-#![deny(unused)]
-#![forbid(dead_code)]
-// docs
+//
+// @TODO:
+//
+//#![deny(unused)]
+//#![forbid(dead_code)]
 #![forbid(missing_docs)]
 // rustdoc lints: https://doc.rust-lang.org/rustdoc/lints.html
 //
@@ -49,271 +85,20 @@
 #[cfg(doc)]
 extern crate alloc;
 
-/// For casting/ensuring that a user-provided function is unsafe. Used by `unsafe_fn`.
-///
-/// Internal - NOT a part of public API.
-#[doc(hidden)]
-#[allow(clippy::module_inception)]
-pub mod expecting_unsafe_fn {
-    /// For casting/ensuring that a user-provided function is unsafe. Used by `unsafe_fn`.
-    pub unsafe fn fun<R>() -> R {
-        unreachable!()
-    }
-    /// Function with one argument.
-    pub mod arg {
-        /// Used by `unsafe_fn`.
-        pub unsafe fn fun<A1, R>(_: A1) -> R {
-            unreachable!()
-        }
-
-        /// Two arguments.
-        #[allow(clippy::module_inception)]
-        pub mod arg {
-            #[allow(clippy::module_inception)]
-            /// Used by `unsafe_fn`.
-            pub unsafe fn fun<A1, A2, R>(_: A1, _: A2) -> R {
-                unreachable!()
-            }
-
-            /// Three arguments.
-            #[allow(clippy::module_inception)]
-            pub mod arg {
-                #[allow(clippy::module_inception)]
-                /// Used by `unsafe_fn`.
-                pub unsafe fn fun<A1, A2, A3, R>(_: A1, _: A2, _: A3) -> R {
-                    unreachable!()
-                }
-
-                /// Four arguments.
-                #[allow(clippy::module_inception)]
-                pub mod arg {
-                    #[allow(clippy::module_inception)]
-                    /// Used by `unsafe_fn`.
-                    pub unsafe fn fun<A1, A2, A3, A4, R>(_: A1, _: A2, _: A3, _: A4) -> R {
-                        unreachable!()
-                    }
-
-                    /// Five arguments.
-                    #[allow(clippy::module_inception)]
-                    pub mod arg {
-                        /// Used by `unsafe_fn`.
-                        pub unsafe fn fun<A1, A2, A3, A4, A5, R>(
-                            _: A1,
-                            _: A2,
-                            _: A3,
-                            _: A4,
-                            _: A5,
-                        ) -> R {
-                            unreachable!()
-                        }
-
-                        /// Six arguments.
-                        #[allow(clippy::module_inception)]
-                        pub mod arg {
-                            /// Used by `unsafe_fn`.
-                            pub unsafe fn fun<A1, A2, A3, A4, A5, A6, R>(
-                                _: A1,
-                                _: A2,
-                                _: A3,
-                                _: A4,
-                                _: A5,
-                                _: A6,
-                            ) -> R {
-                                unreachable!()
-                            }
-
-                            /// Seven arguments.
-                            #[allow(clippy::module_inception)]
-                            pub mod arg {
-                                /// Used by `unsafe_fn`.
-                                pub unsafe fn fun<A1, A2, A3, A4, A5, A6, A7, R>(
-                                    _: A1,
-                                    _: A2,
-                                    _: A3,
-                                    _: A4,
-                                    _: A5,
-                                    _: A6,
-                                    _: A7,
-                                ) -> R {
-                                    unreachable!()
-                                }
-
-                                /// Eight arguments.
-                                #[allow(clippy::module_inception)]
-                                pub mod arg {
-                                    /// Used by `unsafe_fn`.
-                                    #[allow(clippy::too_many_arguments)]
-                                    pub unsafe fn fun<A1, A2, A3, A4, A5, A6, A7, A8, R>(
-                                        _: A1,
-                                        _: A2,
-                                        _: A3,
-                                        _: A4,
-                                        _: A5,
-                                        _: A6,
-                                        _: A7,
-                                        _: A8,
-                                    ) -> R {
-                                        unreachable!()
-                                    }
-
-                                    /// Nine arguments.
-                                    #[allow(clippy::module_inception)]
-                                    pub mod arg {
-                                        /// Used by `unsafe_fn`.
-                                        #[allow(clippy::too_many_arguments)]
-                                        pub unsafe fn fun<A1, A2, A3, A4, A5, A6, A7, A8, A9, R>(
-                                            _: A1,
-                                            _: A2,
-                                            _: A3,
-                                            _: A4,
-                                            _: A5,
-                                            _: A6,
-                                            _: A7,
-                                            _: A8,
-                                            _: A9,
-                                        ) -> R {
-                                            unreachable!()
-                                        }
-
-                                        /// Ten arguments.
-                                        #[allow(clippy::module_inception)]
-                                        pub mod arg {
-                                            /// Used by `unsafe_fn`.
-                                            #[allow(clippy::too_many_arguments)]
-                                            pub unsafe fn fun<
-                                                A1,
-                                                A2,
-                                                A3,
-                                                A4,
-                                                A5,
-                                                A6,
-                                                A7,
-                                                A8,
-                                                A9,
-                                                A10,
-                                                R,
-                                            >(
-                                                _: A1,
-                                                _: A2,
-                                                _: A3,
-                                                _: A4,
-                                                _: A5,
-                                                _: A6,
-                                                _: A7,
-                                                _: A8,
-                                                _: A9,
-                                                _: A10,
-                                            ) -> R {
-                                                unreachable!()
-                                            }
-
-                                            /// Eleven arguments.
-                                            #[allow(clippy::module_inception)]
-                                            pub mod arg {
-                                                /// Used by `unsafe_fn`.
-                                                #[allow(clippy::too_many_arguments)]
-                                                pub unsafe fn fun<
-                                                    A1,
-                                                    A2,
-                                                    A3,
-                                                    A4,
-                                                    A5,
-                                                    A6,
-                                                    A7,
-                                                    A8,
-                                                    A9,
-                                                    A10,
-                                                    A11,
-                                                    R,
-                                                >(
-                                                    _: A1,
-                                                    _: A2,
-                                                    _: A3,
-                                                    _: A4,
-                                                    _: A5,
-                                                    _: A6,
-                                                    _: A7,
-                                                    _: A8,
-                                                    _: A9,
-                                                    _: A10,
-                                                    _: A11,
-                                                ) -> R
-                                                {
-                                                    unreachable!()
-                                                }
-                                                /// Twelve arguments.
-                                                #[allow(clippy::module_inception)]
-                                                pub mod arg {
-                                                    /// Used by `unsafe_fn`.
-                                                    #[allow(clippy::too_many_arguments)]
-                                                    pub unsafe fn fun<
-                                                        A1,
-                                                        A2,
-                                                        A3,
-                                                        A4,
-                                                        A5,
-                                                        A6,
-                                                        A7,
-                                                        A8,
-                                                        A9,
-                                                        A10,
-                                                        A11,
-                                                        A12,
-                                                        R,
-                                                    >(
-                                                        _: A1,
-                                                        _: A2,
-                                                        _: A3,
-                                                        _: A4,
-                                                        _: A5,
-                                                        _: A6,
-                                                        _: A7,
-                                                        _: A8,
-                                                        _: A9,
-                                                        _: A10,
-                                                        _: A11,
-                                                        _: A12,
-                                                    ) -> R
-                                                    {
-                                                        unreachable!()
-                                                    }
-                                                }
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        }
-    }
-}
-
-/// Generate path to `fun` under [expecting_unsafe_fn::arg], or [expecting_unsafe_fn::arg::arg], or
-/// [expecting_unsafe_fn::arg::arg::arg] etc, as appropriate for given number of argument(s).
-///
-/// Internal - NOT a part of public API.
-#[macro_export]
-#[doc(hidden)]
-macro_rules! expecting_unsafe_fn_path {
-    ( $( $arg:expr ),+ ) => {
-        $crate::expecting_unsafe_fn_path!( ~ { $( $arg ),+ }, $crate::expecting_unsafe_fn )
-    };
-    ( ~ { $arg_first:expr, $( $arg_rest:expr ),+ }, $( $path_part:tt )+ ) => {
-        $crate::expecting_unsafe_fn_path!( ~ { $( $arg_rest ),+ }, $( $path_part )+ ::arg )
-    };
-    ( ~ { $arg_last:expr }, $( $path_part:tt )+ ) => {
-        $( $path_part )+ ::arg::fun
-    };
-}
+pub mod back_end;
+/// No need to be public. The only functionality is:
+/// - macros, which are exported even if private; and
+/// - [front_end::INTERNAL_FRONT_END_VERSION], which is used only if the module is loaded with
+///   [load] into the user's crate.
+mod front_end;
+/// No need to be public. The only functionality is macros, which are exported even if private.
+mod front_end_loader;
 
 // Implementation notes ARE a part of the documentation:
-// - Otherwise it's a pain to edit them.
+// - Otherwise it's a pain to edit them/render them in VS Code. Yes, that matters.
 // - Users deserve documentation of how a macro works, because
 //   - macros are much more difficult to read than Rust non-macro code, and
-//   - macros inject code.
+//   - macros inject code, so they are not as sandboxed/isolated as non-macro code.
 //
 /// Invoke an `unsafe` function, but isolate `unsafe {...}` only for the function invocation itself.
 /// - If `$fn`, that is, the function itself, is NOT given as an identifier/qualified path, but it's
@@ -387,24 +172,6 @@ macro_rules! expecting_unsafe_fn_path {
 /// TODO docs about tuple tree
 #[macro_export]
 macro_rules! unsafe_fn {
-    /*( $fn:expr $(, $arg:expr)* ) => {
-        (
-            if false {
-                #[deny(unused_unsafe)]
-                let _ = $fn;
-                $(
-                    #[deny(unused_unsafe)]
-                    let _ = $arg;
-                )*
-                unreachable!()
-            } else {
-                #[allow(unsafe_code)]
-                unsafe {
-                    ( $fn )( $( $arg ),* )
-                }
-            }
-        )
-    };*/
     ( $fn:expr $(, $arg:expr)+ ) => {
         // Enclosed in (...) and NOT in {...}. Why? Because the later does NOT work if the result is
         // an array/slice and then it's indexed with array access suffix [usize_idx].
@@ -453,7 +220,7 @@ macro_rules! unsafe_fn {
                 // Ensure that $fn is not safe, but `unsafe`. Using
                 // https://doc.rust-lang.org/reference/types/function-item.html#r-type.fn-item.coercion
                 let _ = if false {
-                    $crate::expecting_unsafe_fn::fun
+                    $crate::back_end::expecting_unsafe_fn::fun
                 } else {
                     fun
                 };
@@ -571,13 +338,6 @@ macro_rules! unsafe_fn_internal_access_tuple_tree_field {
 }
 //-------------
 
-/// NOT a part of public API. Pretend to get a mutable reference from a shared reference. For
-/// internal/generated **compile-time** checks only.
-#[doc(hidden)]
-pub const fn shared_to_mut<T>(_: &T) -> &mut T {
-    unreachable!()
-}
-
 /// NOT a part of public API. Ensure that maximum one of `~allow_unsafe` or `~expect_unsafe` is passed to [unsafe_method].
 #[doc(hidden)]
 #[macro_export]
@@ -586,7 +346,9 @@ macro_rules! allow_unsafe_expect_unsafe_is_correct {
         ~allow_unsafe  $( { $_allow_unsafe_empty_indicator:tt  } )?
         ~expect_unsafe $( { $_expect_unsafe_empty_indicator:tt } )?
     ) => {
-        compile_error!("Do not use *both* ~allow_unsafe and ~expect_unsafe with unsafe_method macro.");
+        compile_error!(
+            "Do not use *both* ~allow_unsafe and ~expect_unsafe with unsafe_method macro."
+        );
     };
     (
         ~allow_unsafe  $( { $_allow_unsafe_empty_indicator:tt  } )?
@@ -681,7 +443,7 @@ macro_rules! unsafe_method {
                         rref
                     };
                     //
-                    let mref = $crate::shared_to_mut(rref);
+                    let mref = $crate::back_end::shared_to_mut(rref);
                     let mut owned_receiver = ::core::mem::replace(mref, unsafe{ ::core::mem::zeroed() });
                     // Detect code where unsafe_fn! or unsafe_method! is not needed at all. That is,
                     // where a function/method used to be `unsafe`, but it stopped being so.
@@ -972,24 +734,18 @@ macro_rules! unsafe_mut {
     }};
 }
 
-/// This is an "early" type check for [unsafe_val], so that the user knows to use [unsafe_val] with [core::marker::Copy] types only.
-///
-/// NOT a part of public API!
-#[doc(hidden)]
-pub const fn expect_copy_ptr<T: Copy>(_: *const T) {}
-
 /// Get a (copy of) value from where the pointer points. For [core::marker::Copy] types only.
 #[macro_export]
 macro_rules! unsafe_val {
     ($ptr:expr) => {{
         let ptr: *const _ = $ptr;
-        $crate::expect_copy_ptr(ptr);
+        $crate::back_end::expect_copy_ptr(ptr);
         unsafe { *ptr }
     }};
     ($ptr:expr, $ptr_type:ty) => {{
         let ptr = $ptr;
         let ptr = ptr as *const $ptr_type;
-        $crate::expect_copy_ptr(ptr);
+        $crate::back_end::expect_copy_ptr(ptr);
         unsafe { *ptr }
     }};
 }
