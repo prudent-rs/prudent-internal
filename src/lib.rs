@@ -37,7 +37,7 @@
 //
 //#![deny(unused)]
 //#![forbid(dead_code)]
-#![forbid(missing_docs)]
+#![deny(missing_docs)]
 // rustdoc lints: https://doc.rust-lang.org/rustdoc/lints.html
 //
 // rustdoc::missing_doc_code_examples we don't apply here, because it's nightly-only. Instead, we
@@ -71,8 +71,8 @@
     rustdoc::unescaped_backticks,
     rustdoc::redundant_explicit_links
 )]
-//#![allow(macro_expanded_macro_exports_accessed_by_absolute_paths)]
-
+// Unfortunately, `#![allow(clippy::needless_doctest_main)]` or
+// `![allow(clippy::needless_doctest_main)]` don't work in individual doctests.
 // Do not inject `extern crate prudent` to doctests, because load!() defines module `prudent`.
 #![doc(test(no_crate_inject))]
 #![doc(test(attr(deny(unused, dead_code))))]
@@ -98,9 +98,7 @@ pub mod unlinted;
 #[path = "linted.rs"]
 mod linted_untested;
 
-/// Linted macros.
-//#[cfg(doctest)]
-#[path = "linted_tests.rs"]
+#[path = "linted_with_tests.rs"]
 pub mod linted;
 
 /// No need to be public. The only functionality is macros, which are exported even if private.
