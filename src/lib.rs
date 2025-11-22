@@ -25,7 +25,9 @@
 //!
 //! Pass a second parameter, after `->`, if you want the load in a module with name of your choice
 //! (other than `prudent`).
-// #![doc = include_str!("../README.md")]
+#![allow(clippy::useless_attribute)]
+#![allow(clippy::needless_doctest_main)]
+#![doc = include_str!("../README.md")]
 #![cfg_attr(not(any(doc, test)), no_std)]
 #![forbid(unknown_lints)]
 // We can't `#![forbid(unused)]`, because our macros issue `#[allow(unused_unsafe)]`. Without that
