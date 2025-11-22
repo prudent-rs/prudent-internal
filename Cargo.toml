@@ -8,7 +8,7 @@ license = "BSD-2-Clause OR Apache-2.0 OR MIT"
 # rust-version is recognized only since Rust 1.56, but that's OK.
 #
 # Tests require Rust 1.79+
-rust-version = "1.31"
+rust-version = "1.39"
 
 authors = ["Peter Lyons Kehl<peter.kehl@gmail.com>"]
 description = "Help you make Rust code safer. For both authors and reviewers."
