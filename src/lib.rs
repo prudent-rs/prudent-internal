@@ -1,21 +1,13 @@
 //! To use the crate without lints:
 //! 1. Invoke this macro at the top of your crate (`lib.rs`, or in your binary crates if they don't
 //!    have `lib.rs`). Like this, **with** the leading double colon `::``
-//!    ```ignore
+//!    ```
 //!    ::prudent::load!();
 //!    ```
-//!    But, from here on, never refer to `::prudent`. Instead,
-//!    - use `prudent` in your `lib.rs` (or in the top level of your binary crates), and
-//!    - use `crate::prudent` in your modules.
-//! 2. Import (with alias(es) if there are any conflicts). This must be **without** any leading
-//!    double colon `::`!
-//!    ```ignore
-//!    // At the top level of your `lib.rs` or a binary crate:
-//!    use prudent::*;
-//!    // elsewhere:
-//!    use crate::prudent::*;
-//!    ```
-//! 3. Import in your submodules import (with alias(es if there are any conflicts):
+//!    But, from here on, never refer to `::prudent`. Instead, use `crate::prudent`. (You could use
+//!    `self::prudent` at the top level of your `lib.rs` (or in the top level of your binary
+//!    crates), but `crate::prudent` works everywhere.)
+//! 2. Wildcard import. This must be **without** any leading double colon `::`!
 //!    ```ignore
 //!    use crate::prudent::*;
 //!    ```
@@ -25,13 +17,14 @@
 //! - if your crate is not published on <crates.io>
 //!
 //! then pass the first parameter, a relative/absolute file path to your local clone/git submodule
-//! copy/other copy of `src/linted.rs`. So, instead of `#1` above, have
-//! something like:
+//! copy/other copy of `src/linted.rs`. So, instead of `#1` above, have something like:
 //! ```ignore
 //!    ::prudent::load!("../../prudent/src/linted.rs");
+//!    use crate::prudent::*;
 //! ```
 //!
-//! Pass a second parameter, after `->`, if you want the load in a module with name of your choice.
+//! Pass a second parameter, after `->`, if you want the load in a module with name of your choice
+//! (other than `prudent`).
 // #![doc = include_str!("../README.md")]
 #![cfg_attr(not(any(doc, test)), no_std)]
 #![forbid(unknown_lints)]
