@@ -73,8 +73,6 @@
     rustdoc::unescaped_backticks,
     rustdoc::redundant_explicit_links
 )]
-// Unfortunately, `#![allow(clippy::needless_doctest_main)]` or
-// `![allow(clippy::needless_doctest_main)]` don't work in individual doctests.
 // Do not inject `extern crate prudent` to doctests, because load!() defines module `prudent`.
 #![doc(test(no_crate_inject))]
 #![doc(test(attr(deny(unused, dead_code))))]
