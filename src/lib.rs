@@ -126,7 +126,7 @@ pub mod backend;
 #[path = "frontend_unlinted.rs"]
 mod frontend_untested;
 
-#[path = "frontend_with_tests.rs"]
+#[path = "frontend_with_compile_fail_tests.rs"]
 #[doc(hidden)]
 pub mod frontend;
 
