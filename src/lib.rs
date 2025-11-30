@@ -1,34 +1,3 @@
-//! To use the crate without lints:
-//! 1. Invoke this macro at the top of your crate (`lib.rs`, or in your binary crates if they don't
-//!    have `lib.rs`). Like this, **with** the leading double colon `::`
-//!    ```
-//!    ::prudent::load!();
-//!    ```
-//!    But, from here on, never refer to `::prudent`. Instead, use `crate::prudent`. (You could use
-//!    `self::prudent` at the top level of your `lib.rs` (or in the top level of your binary
-//!    crates), but `crate::prudent` works everywhere.)
-//! 2. Wildcard import. This must be **without** any leading double colon `::`!
-//!    ```ignore
-//!    use crate::prudent::*;
-//!    ```
-//!
-//! If you need lints
-//! - in doctests or custom integration tests (even if your crate is published on <crates.io>); or
-//! - if your crate is not published on <crates.io>
-//!
-//! then pass the first parameter, a relative/absolute file path to your local clone/git submodule
-//! copy/other copy of `src/frontend_linted.rs`. So, instead of `#1` above, have something like:
-//! ```ignore
-//!    ::prudent::load!("../../prudent/src/frontend_linted.rs");
-//!    use crate::prudent::*;
-//! ```
-//!
-//! Pass a second parameter, after `=>`, if you want the loaded module to have name of your choice
-//! (other than `prudent`). For example:
-//! ```ignore
-//!    ::prudent::load!("../../prudent/src/frontend_linted.rs" => prudentish);
-//!    use crate::prudentish::*;
-//! ```
 #![allow(clippy::useless_attribute)]
 #![allow(clippy::needless_doctest_main)]
 //! # Examples (linted)
@@ -110,7 +79,6 @@ macro_rules! internal_coverage_positive {
         $(
             $description,
             "\n```\n",
-            "::prudent::load!(", $load_params, ");\n",
             ::core::include_str!($file),
             // just in case the file doesn't end with a new line, inject it anyway:
             "\n```\n",
@@ -122,23 +90,15 @@ macro_rules! internal_coverage_positive {
 
 pub mod backend;
 
-#[cfg(feature = "internal_use_frontend_linted")]
-compile_error!("Use feature internal_use_frontend_linted only for easier editing.");
-
 /// Frontend macros.
-#[cfg(not(feature = "internal_use_frontend_linted"))]
-#[path = "frontend_unlinted.rs"]
-mod frontend_untested;
-#[cfg(feature = "internal_use_frontend_linted")]
+//#[path = "frontend_unlinted.rs"]
+//mod frontend_untested;
 #[path = "frontend_linted.rs"]
 mod frontend_untested;
 
 #[path = "frontend_with_compile_fail_tests.rs"]
 #[doc(hidden)]
 pub mod frontend;
-
-/// No need to be public. The only functionality is macros, which are exported even if private.
-mod frontend_loader;
 
 const _VERIFY_CRATE_NAME: () = {
     let path = core::module_path!().as_bytes();
