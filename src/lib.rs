@@ -50,8 +50,6 @@
     rustdoc::unescaped_backticks,
     rustdoc::redundant_explicit_links
 )]
-// Do not inject `extern crate prudent` to doctests, because load!() defines module `prudent`.
-#![doc(test(no_crate_inject))]
 #![doc(test(attr(deny(unused, dead_code))))]
 // Workaround for https://github.com/rust-lang/rust/issues/148599
 #![doc(test(attr(allow(forbidden_lint_groups))))]
@@ -90,21 +88,8 @@ macro_rules! internal_coverage_positive {
 
 pub mod backend;
 
-/// Frontend macros.
-//#[path = "frontend_unlinted.rs"]
-//mod frontend_untested;
-#[path = "frontend_linted.rs"]
-mod frontend_untested;
+/// "Frontend" macros.
+mod frontend;
 
-#[path = "frontend_with_compile_fail_tests.rs"]
 #[doc(hidden)]
-pub mod frontend;
-
-const _VERIFY_CRATE_NAME: () = {
-    let path = core::module_path!().as_bytes();
-    if !matches!(path, b"prudent") {
-        panic!(
-            "Do NOT rename `prudent` crate. That is not possible because of rust-lang/rust#110613."
-        );
-    }
-};
+pub mod frontend_with_compile_fail_tests;
