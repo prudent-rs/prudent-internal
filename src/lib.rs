@@ -1,9 +1,7 @@
 #![allow(clippy::useless_attribute)]
 #![allow(clippy::needless_doctest_main)]
-//! # Examples (linted)
-#![doc  = internal_coverage_positive!("any: \"frontend_linted.rs\"") ]
-//! # Examples (not linted)
-#![doc  = internal_coverage_positive!("") ]
+//! # Examples
+#![doc  = internal_coverage_positive!() ]
 #![doc = include_str!("../README.md")]
 #![cfg_attr(not(any(doc, test)), no_std)]
 #![forbid(unknown_lints)]
@@ -51,6 +49,7 @@
     rustdoc::redundant_explicit_links
 )]
 #![doc(test(attr(deny(unused, dead_code))))]
+// @TODO check if still needed:
 // Workaround for https://github.com/rust-lang/rust/issues/148599
 #![doc(test(attr(allow(forbidden_lint_groups))))]
 
@@ -61,16 +60,13 @@ extern crate alloc;
 #[macro_export]
 macro_rules! internal_coverage_positive {
     (
-        $load_params:literal
     ) => {
         $crate::internal_coverage_positive!(
-            $load_params,
             "# unsafe_fn" -> "../coverage_positive/fn.rs",
             "# unsafe_method\n## unsafe_method > self: shared reference" -> "../coverage_positive/md-shared_ref.rs"
         )
     };
     (
-        $load_params:literal,
         $( $description:literal -> $file:literal ),*
     ) => {
         ::core::concat!(
