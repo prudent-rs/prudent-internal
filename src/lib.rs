@@ -1,34 +1,21 @@
-// @TODO feature NOT actually needed in the crate itself, only in consumers
-//
-//#![cfg_attr(feature = "assert_unsafe_methods", feature(type_alias_impl_trait))]
+//! # Examples
+#![doc  = internal_coverage_positive!() ]
+#![doc = include_str!("../README.md")]
+//!
+//! Implementation notes of macros ARE a part of the documentation. Why?
+//! - Users deserve documentation of **how** a macro works, because
+//!   - macros are much more difficult to read than Rust non-macro code, and
+//!   - macros inject code, so they are not as sandboxed/isolated as non-macro code.
+//! - Otherwise it's a pain to edit them/render them in VS Code. Yes, that matters.
 
-// @TODO e-considr:
-//
-//#![doc(test(no_crate_inject))]
-//
-// #![cfg_attr(feature = "assert_unsafe_methods", doc(test(attr = ::prudent::top_header_assert_unsafe_methods!())))]
-//
-//#![doc(test(attr = ::prudent::top_header_assert_unsafe_methods!()))]
 #![cfg_attr(
     feature = "assert_unsafe_methods",
     doc(test(attr(feature(type_alias_impl_trait))))
 )]
 #![allow(clippy::useless_attribute)]
 #![allow(clippy::needless_doctest_main)]
-//! # Examples
-#![doc  = internal_coverage_positive!() ]
-#![doc = include_str!("../README.md")]
 #![cfg_attr(not(any(doc, test)), no_std)]
 #![forbid(unknown_lints)]
-// We can't `#![forbid(unused)]`, because our macros issue `#[allow(unused_unsafe)]`. Without that
-// unsafe_method! existed only as multiple specialized macros: unsafe_method_ref!,
-// unsafe_method_mut!... And there were problems with unintended duplicates of Copy `self` when
-// invoking methods with the receiver being &self, that is, a shared reference.
-//
-// @TODO:
-//
-//#![deny(unused)]
-//#![forbid(dead_code)]
 #![deny(missing_docs)]
 // rustdoc lints: https://doc.rust-lang.org/rustdoc/lints.html
 //
@@ -117,6 +104,3 @@ pub mod backend;
 
 /// "Frontend" macros.
 mod frontend;
-
-#[doc(hidden)]
-pub mod frontend_with_compile_fail_tests;
