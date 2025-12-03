@@ -312,14 +312,14 @@ macro_rules! unsafe_method {
     (
         $self:expr =>@ $method:ident
      ) => {
-        $crate::unsafe_method_check_cfg!(
+        $crate::unsafe_method_assert_unsafe_methods!(
             $self =>@ $method =>
         )
      };
     (
         $self:expr =>@ $method:ident => $( $arg:expr ),*
      ) => {
-        $crate::unsafe_method_check_cfg!(
+        $crate::unsafe_method_assert_unsafe_methods!(
             $self =>@ $method => $( $arg ),*
         )
     }
@@ -347,55 +347,47 @@ pub const _: () = {};
 #[cfg(not(feature = "assert_unsafe_methods"))]
 #[macro_export]
 #[doc(hidden)]
-macro_rules! unsafe_method_check_cfg {
+macro_rules! code_assert_unsafe_methods {
     (
-        $self:expr =>@ $method:ident => $( $arg:expr ),*
-     ) => {
-        $crate::unsafe_method_assert_unsafe_methods!(
-            {}
-            $self =>@ $method => $( $arg ),*
-        )
-     }
+        $owned_receiver:expr, $method:ident
+     ) => {};
 }
 #[cfg(feature = "assert_unsafe_methods")]
 #[macro_export]
 #[doc(hidden)]
-macro_rules! unsafe_method_check_cfg {
+macro_rules! code_assert_unsafe_methods {
     (
-        $self:expr =>@ $method:ident => $( $arg:expr ),*
-     ) => {
-        $crate::unsafe_method_assert_unsafe_methods!(
-            {
-                type OwnedReceiver = impl Sized;
-                //let _ = move || -> OwnedReceiver { owned_receiver };
-                let owned_receiver: OwnedReceiver = owned_receiver;
+        $owned_receiver:expr, $method:ident
+     ) => {{
+        type OwnedReceiver = impl Sized;
+        let _: &OwnedReceiver = &$owned_receiver;
+        //let _ = move || -> OwnedReceiver { owned_receiver };
+        //
+        //let owned_receiver: OwnedReceiver = owned_receiver;
 
-                // Detect code where `unsafe_method!` is not needed at all. Maybe the method used
-                // to be `unsafe`, but not anymore.
-                //
-                // See unsafe_fn for why we can't just use simple coercion like:
-                // ```
-                // let _: unsafe fn(_, _,... ) -> _ = OwnedReceiver::$method;
-                // ```
+        // Detect code where `unsafe_method!` is not needed at all. Maybe the method used
+        // to be `unsafe`, but not anymore.
+        //
+        // See unsafe_fn for why we can't just use simple coercion like:
+        // ```
+        // let _: unsafe fn(_, _,... ) -> _ = OwnedReceiver::$method;
+        // ```
 
-                let _ = OwnedReceiver::$method;
-                /*let _ = if false {
-                    $crate::expecting_unsafe_fn_path!( first_goes_receiver $(, $arg )* )
-                } else {
-                    OwnedReceiver::$method
-                };*/
-                ::core::unreachable!();
-            }
-            $self =>@ $method => $( $arg ),*
-        )
-     }
+        let _ = OwnedReceiver::$method;
+        // @TODO
+        /*let _ = if false {
+            $crate::expecting_unsafe_fn_path!( first_goes_receiver $(, $arg )* )
+        } else {
+            OwnedReceiver::$method
+        };*/
+        ::core::unreachable!();
+    }};
 }
 
 #[macro_export]
 #[doc(hidden)]
 macro_rules! unsafe_method_assert_unsafe_methods {
     (
-        { $( $code_assert_unsafe_methods:tt )* }
         $self:expr =>@ $method:ident => $( $arg:expr ),*
      ) => {
         // See unsafe_fn for why here we enclose in (...) and not in {...}.
@@ -421,7 +413,9 @@ macro_rules! unsafe_method_assert_unsafe_methods {
                 let mut owned_receiver = ::core::mem::replace(mref, unsafe{ ::core::mem::zeroed() });
 
                 if false {
-                    $( $code_assert_unsafe_methods )*
+                    $crate::code_assert_unsafe_methods!(owned_receiver, $method);
+                    //type OwnedReceiver = impl Sized;
+                    //let _: &OwnedReceiver = &owned_receiver;
                 }
                 // @TODO double check and remove:
                 //

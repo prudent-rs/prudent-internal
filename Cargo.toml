@@ -43,4 +43,4 @@ unexpected_cfgs = { level = "forbid"}
 #       #![cfg_attr(feature = "assert_unsafe_methods", doc(test(attr = ::prudent::top_header_assert_unsafe_methods!())))]
 #       ```
 assert_unsafe_methods = []
-#default = []
+# default = ["assert_unsafe_methods"]
