@@ -6,10 +6,12 @@
 //!   - macros inject code, so they are not as sandboxed/isolated as non-macro code.
 //! - Otherwise it's a pain to edit them/render them in VS Code. Yes, that matters.
 
-#![cfg_attr(
+/*#![cfg_attr(
     feature = "assert_unsafe_methods",
     doc(test(attr(feature(type_alias_impl_trait))))
-)]
+)]*/
+#![doc(test(attr(forbid(unexpected_cfgs))))]
+//
 #![allow(clippy::useless_attribute)]
 #![allow(clippy::needless_doctest_main)]
 #![cfg_attr(not(any(doc, test)), no_std)]
