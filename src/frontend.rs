@@ -84,7 +84,6 @@
 ///     unsafe_fn!( return_same_mut_ref => &mut marray )[0] = true;
 /// }
 /// ```
-#[doc(hidden)]
 #[macro_export]
 macro_rules! unsafe_fn {
     ( $fn:expr => $( $arg:expr ),+ ) => {
@@ -309,7 +308,6 @@ macro_rules! unsafe_fn_internal_access_tuple_tree_field {
 //#[doc = include_str!("../violations_coverage/unsafe_method/fn_unused_unsafe/some_args.rs")]
 // ```
 #[macro_export]
-#[doc(hidden)]
 macro_rules! unsafe_method {
     (
         $self:expr =>@ $method:ident
@@ -525,7 +523,6 @@ macro_rules! unsafe_method_internal_build_accessors_check_args_call {
 /// }
 /// ```
 #[macro_export]
-#[doc(hidden)]
 macro_rules! unsafe_static_set {
     ($static:path, $val:expr) => {{
         if false {
@@ -558,7 +555,6 @@ macro_rules! unsafe_static_set {
 /// reference based on the given pointer), and the given pointer is cast to `* const $type`. `$type`
 /// may start with `dyn`. `$type` may be a slice `[...]`.
 #[macro_export]
-#[doc(hidden)]
 macro_rules! unsafe_ref {
     ($ptr:expr) => {{
         let ptr: *const _ = $ptr;
@@ -586,7 +582,6 @@ macro_rules! unsafe_ref {
 /// type (NOT the given pointer, NOT the target reference type) and the given pointer is cast to `*
 /// const $type`. `$type` may start with `dyn`. `$type` may be a slice `[...]`.
 #[macro_export]
-#[doc(hidden)]
 macro_rules! unsafe_mut {
     ($ptr:expr) => {{
         let ptr: *mut _ = $ptr;
@@ -610,7 +605,6 @@ macro_rules! unsafe_mut {
 
 /// Get a (copy of) value from where the pointer points. For [core::marker::Copy] types only.
 #[macro_export]
-#[doc(hidden)]
 macro_rules! unsafe_val {
     ($ptr:expr) => {{
         let ptr: *const _ = $ptr;
@@ -654,7 +648,6 @@ macro_rules! unsafe_use {
 ///
 /// `unsafe_set!( pt ) = false;`
 #[macro_export]
-#[doc(hidden)]
 macro_rules! unsafe_set {
     ($ptr:expr, $value:expr) => {{
         if false {
