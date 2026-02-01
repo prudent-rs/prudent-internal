@@ -1,7 +1,8 @@
-/*#![cfg_attr(
+#![cfg_attr(
     feature = "assert_unsafe_methods",
     doc(test(attr(feature(type_alias_impl_trait))))
-)]*/
+)]
+#![cfg_attr(feature = "assert_unsafe_methods", feature(type_alias_impl_trait))]
 #![doc(test(attr(forbid(unexpected_cfgs))))]
 #![doc(test(attr(deny(unused, dead_code))))]
 // @TODO check if still needed:
