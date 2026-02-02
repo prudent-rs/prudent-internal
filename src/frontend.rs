@@ -398,11 +398,7 @@ macro_rules! code_assert_unsafe_methods {
      ) => {{
         type OwnedReceiver = impl Sized;
         let _: &OwnedReceiver = &$owned_receiver;
-        /* //let _ = move || -> OwnedReceiver { owned_receiver };
-
-          let owned_receiver: OwnedReceiver = owned_receiver;
-
-           Detect code where `unsafe_method!` is not needed at all. Maybe the method used
+        /* Detect code where `unsafe_method!` is not needed at all. Maybe the method used
            to be `unsafe`, but not anymore.
 
            See unsafe_fn for why we can't just use simple coercion like:
