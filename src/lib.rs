@@ -1,53 +1,3 @@
-/// Invoke an `unsafe` function, but isolate `unsafe {...}` only for the function invocation itself.
-/// - If `$fn` (the function itself) is NOT given as an identifier/qualified path, but it's given as
-///   an expression, then this expression is treated as if evaluated **outside** `unsafe {...}`.
-/// - Any arguments passed in as expressions are treated as if evaluated **outside** `unsafe {...}`.
-///
-/// There is **no** extra enclosing pair of parenthesis `(...)` around the list of arguments (if
-/// any). If there was such a pair, it could be confused for a tuple. It would also be less readable
-/// when some parameters were tuples/complex expressions.
-///
-/// This does NOT accept closures, since closures cannot be `unsafe`.
-///
-/// # Possible violations
-/// - Zero arguments. The given expression (which evaluates to the function to be called) is
-///   `unsafe.`
-/// - Some arguments. The given expression (which evaluates to the function to be called) is
-///   `unsafe.`
-/// OK with stable
-/// ```compile_fail
-#[doc = include_str!("../violations_coverage/unsafe_fn/sneaked_unsafe/fn_expr_zero_args.rs")]
-/// ```
-///
-/// ## Some arguments
-/// The given expression (which evaluates to the function to be called) is `unsafe.`
-// OK with stable
-/// ```compile_fail
-#[doc = include_str!("../violations_coverage/unsafe_fn/sneaked_unsafe/fn_expr_some_args.rs")]
-/// ```
-///
-/// A passed parameter (expression that evaluates to a value passed to the target `unsafe` function as an argument) itself is `unsafe.`
-/// // OK with stable
-/// ```compile_fail
-#[doc = include_str!("../violations_coverage/unsafe_fn/sneaked_unsafe/arg.rs")]
-/// ```
-///
-/// The target function is safe, hence no need for `unsafe_fn`. Zero args.
-///
-/// @TODO this should fail, but it does NOT
-/// ```compile_fail
-#[doc = include_str!("../violations_coverage/unsafe_fn/fn_unused_unsafe/zero_args.rs")]
-/// ```
-///
-/// The target function is safe, hence no need for `unsafe_fn`. Some args.
-///
-/// OK on stable
-/// ```compile_fail
-#[doc = include_str!("../violations_coverage/unsafe_fn/fn_unused_unsafe/some_args.rs")]
-/// Generate path to `fun` under [expecting_unsafe_fn::arg], or [expecting_unsafe_fn::arg::arg], or
-/// [expecting_unsafe_fn::arg::arg::arg] etc, as appropriate for given number of argument(s).
-///
-/// Internal - NOT a part of public API.
 #[macro_export]
 #[doc(hidden)]
 macro_rules! expecting_unsafe_fn_path {
@@ -62,50 +12,6 @@ macro_rules! expecting_unsafe_fn_path {
     };
 }
 
-/// @TODO consider:
-/// ```test_harness
-/// // test_harness -as per https://github.com/rust-lang/rust/issues/148942#issuecomment-3565011334
-/// #[cfg(not(test))]
-/// compile_error!("NOT DOCTEST!");
-/// ```
-/// Use the result of `unsafe_fn!` immediately as an array/slice:
-/// ```test_harness
-/// //TODO? failing??
-/// use prudent::*;
-/// const unsafe fn return_array() -> [bool; 1] { [true] }
-///
-/// const _: bool = unsafe_fn!( return_array)[0];
-/// ```
-/// Use the result of `unsafe_fn!` immediately as a mutable array/slice (assign/modify its slot(s)):
-/// ```
-/// // @TODO MOVE OUT TO coverage_positive/
-/// use prudent::*;
-/// fn _test_unsafe_fn_returning_mut_ref() {
-///     // NOT running under MIRI, because of an intentional leak.
-///     if !cfg!(miri) {
-///         unsafe fn return_mut_ref_array() -> &'static mut [bool; 1] {
-///             let boxed = Box::new([true]);
-///              Box::leak(boxed)
-///         }
-///
-///     unsafe_fn!( return_mut_ref_array)[0] = true;
-///     }
-/// }
-/// fn main() {}
-/// ```
-/// The same, but the function takes an argument (and no leak):
-/// ```
-/// // @TODO MOVE OUT TO coverage_positive/
-/// use prudent::*;
-/// unsafe fn return_same_mut_ref<T>(mref: &mut T) -> &mut T {
-///    mref
-/// }
-///
-/// fn main() {
-///     let mut marray = [true];
-///     unsafe_fn!( return_same_mut_ref => &mut marray )[0] = true;
-/// }
-/// ```
 #[macro_export]
 macro_rules! unsafe_fn {
     ( $fn:expr => $( $arg:expr ),+ ) => {
@@ -124,7 +30,7 @@ macro_rules! unsafe_fn {
 
                    don't include any unnecessary `unsafe{...}` block(s):
 
-                   @TODO remove this #[deny(unused_unsafe)] ??? $fn or any of $arg could be a rezult
+                   @TODO remove this #[deny(unused_unsafe)] ??? $fn or any of $arg could be a result
                    of unsafe_method!(...) that itself MAY have "unused_unsafe" in $self!!!
                 */
                 #[deny(unused_unsafe)]
@@ -181,7 +87,7 @@ macro_rules! unsafe_fn {
                    https://doc.rust-lang.org/reference/types/function-item.html#r-type.fn-item.coercion
                 */
                 let _ = if false {
-                    $crate::backend::expecting_unsafe_fn::fun
+                    ::prudent::backend::expecting_unsafe_fn::fun
                 } else {
                     fun
                 };
@@ -194,51 +100,8 @@ macro_rules! unsafe_fn {
         })
     };
 }
-
-// Same `compile_fail` tests as listed above for `unsafe_fn`, but here we validate the error
-// numbers.
-//
-// Error numbers are validated with `cargo +nightly test`, ([The Rustdoc book > Unstable features >
-// Error numbers for compile-fail
-// doctests](https://doc.rust-lang.org/rustdoc/unstable-features.html#error-numbers-for-compile-fail-doctests))
-// but NOT with
-// - `cargo +stable test` nor
-// - RUSTDOCFLAGS="..." cargo +nightly doc ...
-//
-// Even though the following constant is "pub", it will **not** be a part of the public API, neither
-// a part of the documentation - it's used for doctest only.
-/// ```compile_fail,E0133
-#[doc = include_str!("../violations_coverage/unsafe_fn/sneaked_unsafe/fn_expr_zero_args.rs")]
-/// ```
-#[cfg(doctest)]
-pub const _: () = {};
-
-/// ```compile_fail,E0133
-#[doc = include_str!("../violations_coverage/unsafe_fn/sneaked_unsafe/fn_expr_some_args.rs")]
-/// ```
-#[cfg(doctest)]
-pub const _: () = {};
-
-/// ```compile_fail,E0133
-#[doc = include_str!("../violations_coverage/unsafe_fn/sneaked_unsafe/arg.rs")]
-/// ```
-#[cfg(doctest)]
-pub const _: () = {};
-
-/// ```compile_fail,E0308
-#[doc = include_str!("../violations_coverage/unsafe_fn/fn_unused_unsafe/zero_args.rs")]
-/// ```
-#[cfg(doctest)]
-pub const _: () = {};
-
-/// ```compile_fail,E0308
-#[doc = include_str!("../violations_coverage/unsafe_fn/fn_unused_unsafe/some_args.rs")]
-/// ```
-#[cfg(doctest)]
-pub const _: () = {};
 //----------------------
 
-/// INTERNAL. Do NOT use directly - subject to change.
 #[doc(hidden)]
 #[macro_export]
 macro_rules! unsafe_fn_internal_build_tuple_tree {
@@ -253,7 +116,6 @@ macro_rules! unsafe_fn_internal_build_tuple_tree {
     };
 }
 
-/// INTERNAL. Do NOT use directly - subject to change.
 #[doc(hidden)]
 #[macro_export]
 macro_rules! unsafe_fn_internal_build_accessors_and_call {
@@ -294,9 +156,6 @@ macro_rules! unsafe_fn_internal_build_accessors_and_call {
 
 #[doc(hidden)]
 #[macro_export]
-/// INTERNAL. Do NOT use directly - subject to change.
-///
-/// Expand an accessor group/list to access a field in the tuple_tree.
 macro_rules! unsafe_fn_internal_access_tuple_tree_field {
     ( $tuple_tree:ident, $($accessor_part:tt),* ) => {
         $tuple_tree $(. $accessor_part )*
@@ -304,40 +163,6 @@ macro_rules! unsafe_fn_internal_access_tuple_tree_field {
 }
 //-------------
 
-/// Invoke an `unsafe` method. For methods that have a receiver parameter (`&self`, `&mut self`,
-/// `self`). For associated functions (implemented for a type but with no receiver) use `unsafe_fn`,
-/// and pass the qualified name of the associated function to it.
-///
-/// Like [unsafe_fn], but
-/// - This accepts a receiver `&self`, `&mut self` and `self`. TODO Box/Rc/Arc, dyn?
-/// - This treats `self` as if it were evaluated **outside** the `unsafe {...}` block.
-/// - $fn can **NOT** be an expression or a qualified path (which doesn't work in standard methods
-///   calls anyways), but only an identifier.
-///
-/// ```ignore
-#[doc = include_str!("../violations_coverage/unsafe_method/sneaked_unsafe/arg.rs")]
-/// ```
-///
-/// ```ignore
-#[doc = include_str!("../violations_coverage/unsafe_method/sneaked_unsafe/self_zero_args.rs")]
-/// ```
-///
-/// ```ignore
-#[doc = include_str!("../violations_coverage/unsafe_method/sneaked_unsafe/self_some_args.rs")]
-/// ```
-// TODO refactor for new checks - CURRENTLY as a NON-DOC comment!!
-//
-// ```compile_fail
-//#[doc = include_str!("../violations_coverage/unsafe_method/fn_unused_unsafe/zero_args.rs")]
-// ```
-//
-//#[allow(clippy::useless_attribute)]
-//#[allow(clippy::needless_doctest_main)]
-// OK with stable
-//
-// ```compile_fail
-//#[doc = include_str!("../violations_coverage/unsafe_method/fn_unused_unsafe/some_args.rs")]
-// ```
 #[macro_export]
 macro_rules! unsafe_method {
     (
@@ -355,27 +180,6 @@ macro_rules! unsafe_method {
         )
     }
 }
-
-// OK with stable
-/// ```compile_fail,E0133
-#[doc = include_str!("../violations_coverage/unsafe_method/sneaked_unsafe/arg.rs")]
-/// ```
-#[cfg(doctest)]
-pub const _: () = {};
-
-// OK with stable
-/// ```compile_fail,E0133
-#[doc = include_str!("../violations_coverage/unsafe_method/sneaked_unsafe/self_zero_args.rs")]
-/// ```
-#[cfg(doctest)]
-pub const _: () = {};
-
-// OK with stable
-/// ```compile_fail,E0133
-#[doc = include_str!("../violations_coverage/unsafe_method/sneaked_unsafe/self_some_args.rs")]
-/// ```
-#[cfg(doctest)]
-pub const _: () = {};
 //----------------------
 
 #[cfg(not(feature = "assert_unsafe_methods"))]
@@ -386,9 +190,6 @@ macro_rules! code_assert_unsafe_methods {
         $owned_receiver:expr =>. $method:ident => $( $arg:expr ),*
      ) => {};
 }
-// See also README.md > Related issues >
-// [rust-lang/rust#88531](https://github.com/rust-lang/rust/issues/88531) No way to get compile-time
-// info from the type of local
 #[cfg(feature = "assert_unsafe_methods")]
 #[macro_export]
 #[doc(hidden)]
@@ -418,10 +219,6 @@ macro_rules! code_assert_unsafe_methods {
     }};
 }
 
-/// Detect code where `unsafe_method!` is not needed at all. Maybe the method used to be `unsafe`,
-/// but not anymore.
-///
-/// Only on `nightly` toolchain and only with `assert_unsafe_methods` feature enabled.
 #[macro_export]
 #[doc(hidden)]
 macro_rules! unsafe_method_assert_unsafe_methods {
@@ -446,7 +243,7 @@ macro_rules! unsafe_method_assert_unsafe_methods {
                 */
                 let mref = {
                     let rref = &( $self );
-                    $crate::backend::shared_to_mut( rref )
+                    ::prudent::backend::shared_to_mut( rref )
                 };
                 #[allow(unused_mut)] // in case the method takes &mut self.
                 #[allow(invalid_value)] // for &str and other types where zeroed() issues invalid_value warning.
@@ -540,58 +337,6 @@ macro_rules! unsafe_method_internal_build_accessors_check_args_call {
 }
 //-------------
 
-/// Set a value of a `static mut` variable or its (sub...-)field, but isolate `unsafe {...}` only to
-/// that assignment.
-///
-/// To minimize unintended `unsafe`, calculate any indexes etc. beforehand, store them in local
-/// variables and pass them in.
-///
-/// We do **not** have a similar macro to get a value of a `static mut`. For that, simply enclose it
-/// in `unsafe{...}`. TODO reconsider.
-///
-/// NOT for `static` variables (or their fields/components) of `union` types.
-///
-/// ```
-/// // @TODO MOVE OUT TO coverage_positive/
-/// //use prudent::*;
-/// fn main() {
-/// {
-///     static mut S: (bool,) = (true,);
-///
-///     let mptr = &raw mut S;
-///     unsafe { *mptr = (false,); }
-///
-///     let _mref = unsafe {&mut *mptr};
-///
-///     // The following IS accepted:
-///     //
-///     //{unsafe {&mut *mptr}}.0 = true;
-///     //
-///     // BUT, because the outer curly brackets {...} are **refused** just left of
-///     // [index_here] when indexing arrays (see below), we use oval parenthesis (...)
-///     // which work for both: the tuple access .usize_literal and for array access
-///     // [usize_expression].
-/// }
-/// {
-///     static mut ARR: [bool; 1] = [true];
-///     let mptr = &raw mut ARR;
-///     unsafe { *mptr = [false]; }
-///
-///     let _mref = unsafe {&mut *mptr};
-///     *_mref = [false];
-///     _mref[ 0 ] = true;
-///
-///     // Read access OK:
-///     let _b: bool = { unsafe {&mut *mptr} }[ 0 ];
-///     // Mut access - bad: The following refused:
-///     //
-///     //{ unsafe {&mut *mptr} }[ 0 ] = true;
-///     //
-///     // Have to use oval parenthesis:
-///     ( unsafe {&mut *mptr} )[ 0 ] = true;
-/// }
-/// }
-/// ```
 #[macro_export]
 macro_rules! unsafe_static_set {
     ($static:path, $val:expr) => {{
@@ -619,11 +364,6 @@ macro_rules! unsafe_static_set {
     }};
 }
 
-/// Deref a pointer (either `const` or `mut`) and yield a read-only reference.
-///
-/// If `$type` is given, it's expected to be the referenced type (NOT the given pointer, NOT a
-/// reference based on the given pointer), and the given pointer is cast to `* const $type`. `$type`
-/// may start with `dyn`. `$type` may be a slice `[...]`.
 #[macro_export]
 macro_rules! unsafe_ref {
     ($ptr:expr) => {{
@@ -646,11 +386,6 @@ macro_rules! unsafe_ref {
     }};
 }
 
-/// Deref a `mut` pointer and yield a `mut` reference.
-///
-/// Like in [unsafe_ref]: If `$type` is given, it's expected to be the referenced
-/// type (NOT the given pointer, NOT the target reference type) and the given pointer is cast to `*
-/// const $type`. `$type` may start with `dyn`. `$type` may be a slice `[...]`.
 #[macro_export]
 macro_rules! unsafe_mut {
     ($ptr:expr) => {{
@@ -673,18 +408,17 @@ macro_rules! unsafe_mut {
     }};
 }
 
-/// Get a (copy of) value from where the pointer points. For [core::marker::Copy] types only.
 #[macro_export]
 macro_rules! unsafe_val {
     ($ptr:expr) => {{
         let ptr: *const _ = $ptr;
-        $crate::backend::expect_copy_ptr(ptr);
+        ::prudent::backend::expect_copy_ptr(ptr);
         unsafe { *ptr }
     }};
     ($ptr:expr => $ptr_type:ty) => {{
         let ptr = $ptr;
         let ptr = ptr as *const $ptr_type;
-        $crate::backend::expect_copy_ptr(ptr);
+        ::prudent::backend::expect_copy_ptr(ptr);
         unsafe { *ptr }
     }};
 }
@@ -707,16 +441,6 @@ macro_rules! unsafe_use {
     }};
 }*/
 
-/// Assign the given value to the location given in the pointer.
-///
-/// Needed, because we can't isolate:
-///
-/// `unsafe { *ptr } = value;`
-///
-/// Also, we can't have a macro invocation on the left side (target) of an assignment operator `=`,
-/// so nothing like:
-///
-/// `unsafe_set!( pt ) = false;`
 #[macro_export]
 macro_rules! unsafe_set {
     ($ptr:expr, $value:expr) => {{
