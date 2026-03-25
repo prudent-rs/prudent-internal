@@ -262,7 +262,8 @@ macro_rules! unsafe_method_assert_unsafe_methods {
                     ::prudent::backend::shared_to_mut( rref )
                 };
                 #[allow(unused_mut)] // in case the method takes &mut self.
-                #[allow(invalid_value)] // for &str and other types where zeroed() issues invalid_value warning.
+                // For &str and other types where zeroed() issues invalid_value warning:
+                #[allow(invalid_value)]
                 let mut owned_receiver = ::core::mem::replace(mref, unsafe{ ::core::mem::zeroed() });
 
                 if false {
