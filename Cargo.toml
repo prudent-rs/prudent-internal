@@ -1,5 +1,5 @@
 [package]
-name = "prudent-internal"
+name = "prudent-macros-enforce"
 version = "0.0.3-gamma"
 edition = "2018"
 
@@ -18,7 +18,7 @@ categories = ["development-tools", "no-std", "no-std::no-alloc", "rust-patterns"
 
 keywords = ["safe", "safety", "unsafe", "isolation", "review"]
 
-repository = "https://github.com/prudent-rs/prudent-internal"
+repository = "https://github.com/prudent-rs/prudent-macros-enforce"
 homepage = "https://github.com/prudent-rs/prudent"
 
 [lints.rust]
@@ -29,4 +29,5 @@ unexpected_cfgs = { level = "forbid"}
 assert_unsafe_methods = []
 
 use_with_prudent_only = []
+# "use_with_prudent_only" IS intentionally default, so that any use without prudent fails early.
 default = ["use_with_prudent_only"]
