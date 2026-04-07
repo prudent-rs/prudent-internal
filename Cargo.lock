@@ -2,5 +2,5 @@
 # It is not intended for manual editing.
 [[package]]
 name = "prudent-macros-enforce"
-version = "0.0.3-gamma"
+version = "0.0.3-delta"
 

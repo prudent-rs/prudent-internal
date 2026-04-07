@@ -1,15 +1,26 @@
 [package]
 name = "prudent-macros-enforce"
-version = "0.0.3-gamma"
+version = "0.0.3-delta"
+
+# As of April 2026, prudent-macros-enforce does NOT need 2021 Rust Edition - 2018 is enough.
 edition = "2018"
-
-license = "BSD-2-Clause OR Apache-2.0 OR MIT"
-
-# rust-version is recognized only since Rust 1.56, but that's OK.
+# Below Rust 1.54.0 it failed, because it expected a string literal after #[doc = ...]
+# ```
+# error: unexpected token: `include_str`
+#  --> src/lib.rs:1:10
+#   |
+# 1 | #![doc = include_str!("../README.md")]
+# ```
+#
+# Rust 1.54 was released in July 2021, but it was still in 2018 Edition.
+#
+# "rust-version" itself is recognized only since Rust 1.56, but that's OK
 #
 # Tests require Rust 1.89+. See
 # https://github.com/prudent-rs/prudent/blob/main/.github/workflows/main.yml
-rust-version = "1.39"
+rust-version = "1.54.0"
+
+license = "BSD-2-Clause OR Apache-2.0 OR MIT"
 
 authors = ["Peter Lyons Kehl<peter.kehl@gmail.com>"]
 description = "prudent-rs internal. Don't use directly/on its own. Instead, see and use prudent."
@@ -26,6 +37,8 @@ unexpected_cfgs = { level = "forbid"}
 
 [features]
 # UNSTABLE. See prudent-rs/prudent's feature "assert_unsafe_methods".
+#
+# @TODO remove
 assert_unsafe_methods = []
 
 use_with_prudent_only = []

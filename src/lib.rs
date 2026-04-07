@@ -41,7 +41,7 @@ macro_rules! expecting_unsafe_fn_path {
 
 #[macro_export]
 macro_rules! unsafe_fn {
-    ( $fn:expr => $( $arg:expr ),+ ) => {
+    ( $f:expr => $( $arg:expr ),+ ) => {
         /* Enclosed in (...) and NOT in {...}. Why? Because the later does NOT work if the result is
            an array/slice and then it's accessed with an index suffix `[usize_idx]``.
         */
@@ -58,7 +58,7 @@ macro_rules! unsafe_fn {
 
                    don't include any unnecessary `unsafe{...}` block(s):
 
-                   @TODO remove this #[deny(unused_unsafe)] ??? $fn or any of $arg could be a result
+                   @TODO remove this #[deny(unused_unsafe)] ??? $f or any of $arg could be a result
                    of unsafe_method!(...) that itself MAY have "unused_unsafe" in $self!!!
                 */
                 #[deny(unused_unsafe)]
@@ -66,7 +66,7 @@ macro_rules! unsafe_fn {
                    include any unsafe code/calls/casts on their  own without their own `unsafe{...}`
                    block(s).
                 */
-                let (tuple_tree, fun) = ($crate::unsafe_fn_internal_build_tuple_tree!{ $($arg),+ }, $fn);
+                let (tuple_tree, fun) = ($crate::unsafe_fn_internal_build_tuple_tree!{ $($arg),+ }, $f);
 
                 if false {
                     /* Detect code where `unsafe_fn!` is not needed at all. Maybe the function used
@@ -99,7 +99,7 @@ macro_rules! unsafe_fn {
             }
         )
     };
-    ($fn:expr) => {
+    ($f:expr) => {
         ({
             $crate::potentially_check_prudent_version!();
             /* Ensure that $fn (the expression itself, one that yields a function to call) doesn't
@@ -110,7 +110,7 @@ macro_rules! unsafe_fn {
             /* Ensure that $fn (the expression itself) doesn't include any unsafe code/calls/casts
                on its own without its own `unsafe{...}` block(s):
             */
-            let fun = $fn;
+            let fun = $f;
             if false {
                 /* Ensure that $fn is not safe, but `unsafe`. Using
                    https://doc.rust-lang.org/reference/types/function-item.html#r-type.fn-item.coercion
@@ -288,14 +288,12 @@ macro_rules! unsafe_method_assert_unsafe_methods {
                 // `static` variable (or a deref of a non-`Copy` raw pointer). See also comments in
                 // unsafe_method_internal_build_accessors_check_args_call.
                 */
-                let mref = {
+                let owned_receiver = {
                     let rref = &( $self );
-                    ::prudent::backend::shared_to_mut( rref )
+                    ::prudent::backend::shared_to_owned( rref )
                 };
-                #[allow(unused_mut)] // in case the method takes &mut self.
-                // For &str and other types where zeroed() issues invalid_value warning:
-                #[allow(invalid_value)]
-                let mut owned_receiver = ::core::mem::replace(mref, unsafe{ ::core::mem::zeroed() });
+                #[allow(unused_mut)] // in case the method takes &mut self, or &self.
+                let mut owned_receiver = owned_receiver;
 
                 if false {
                     $crate::code_assert_unsafe_methods!(owned_receiver =>. $method => $( $arg ),*);
@@ -387,7 +385,7 @@ macro_rules! unsafe_method_internal_build_accessors_check_args_call {
 
 #[macro_export]
 macro_rules! unsafe_static_set {
-    ($static:path, $val:expr) => {{
+    ($stat:path, $val:expr) => {{
         $crate::potentially_check_prudent_version!();
         if false {
             let _ = $val;
@@ -395,21 +393,22 @@ macro_rules! unsafe_static_set {
         } else {
             #[allow(unsafe_code)]
             unsafe {
-                $static = $val;
+                $stat = $val;
             }
         }
     }};
     // @TODO implement + rename, so it's for union fields, too:
     //
     // @TODO similar to read union fields
-    ($static:ident { $( $suffix:tt )* } $val:expr) => {{}};
-    ($static:path { $( $suffix:tt )* } $val:expr) => {{
+    ($stat:ident { $( $suffix:tt )* } $val:expr) => {{}};
+    ($stat:path { $( $suffix:tt )* } $val:expr) => {{
         $crate::potentially_check_prudent_version!();
         if false {
-            let mptr = &raw mut $static;
+            let mptr = &raw mut $stat;
             let mref = unsafe { &mut *mptr };
             ::core::unreachable!()
         } else {
+            //@TODO
         }
     }};
 }
@@ -432,11 +431,11 @@ macro_rules! unsafe_ref {
             unsafe { &*ptr as &$lifetime _ }
         })
     };
-    ($ptr:expr, $type:ty) => {
+    ($ptr:expr, $ptr_type:ty) => {
         ({
             $crate::potentially_check_prudent_version!();
             let ptr = $ptr;
-            let ptr = ptr as *const $type;
+            let ptr = ptr as *const $ptr_type;
             unsafe { &*ptr }
         })
     };
