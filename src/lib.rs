@@ -41,7 +41,7 @@ macro_rules! expecting_unsafe_fn_path {
 
 #[macro_export]
 macro_rules! unsafe_fn {
-    ( $f:expr => $( $arg:expr ),+ ) => {
+    ( $f:expr; $( $arg:expr ),+ ) => {
         /* Enclosed in (...) and NOT in {...}. Why? Because the later does NOT work if the result is
            an array/slice and then it's accessed with an index suffix `[usize_idx]``.
         */
@@ -211,7 +211,7 @@ macro_rules! unsafe_method {
         })
      };
     (
-        $self:expr =>. $method:ident => $( $arg:expr ),*
+        $self:expr =>. $method:ident; $( $arg:expr ),*
      ) => {
         ({
             $crate::potentially_check_prudent_version!();
